@@ -1,3 +1,4 @@
+import queue
 import threading
 from datetime import datetime, timezone
 import time
@@ -168,3 +169,23 @@ class StateMachine:
             return True
         self._fail("AI管制PFがdrink/placedを受理しませんでした")
         return False
+
+
+class StateMachineRunner:
+    def __init__(self, state_machine):
+        self._state_machine = state_machine
+        self._start_signal = queue.Queue()
+
+    def request_checkin(self, name):
+        started = self._state_machine.try_start(name)
+        if started:
+            self._start_signal.put(True)
+        return started
+
+    def request_reset(self):
+        return self._state_machine.try_reset()
+
+    def run_forever(self):
+        while True:
+            self._start_signal.get()
+            self._state_machine.run_started_cycle()
