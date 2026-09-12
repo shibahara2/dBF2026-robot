@@ -7,17 +7,19 @@ from app.routes.events import events_bp
 
 class FakeBroadcaster:
     def __init__(self):
-        self.published = []
+        self.unsubscribed = []
+        self.subscribed = []
 
     def subscribe(self):
         import queue
 
         q = queue.Queue()
         q.put({"phase": "active", "step": "polling_r2_active"})
+        self.subscribed.append(q)
         return q
 
     def unsubscribe(self, q):
-        pass
+        self.unsubscribed.append(q)
 
 
 class FakeStateMachine:
@@ -56,3 +58,22 @@ def test_stream_content_type_is_event_stream():
     resp = client.get("/api/events")
     assert resp.content_type.startswith("text/event-stream")
     resp.close()
+
+
+def test_stream_unsubscribes_broadcaster_on_client_disconnect():
+    app = Flask(__name__)
+    broadcaster = FakeBroadcaster()
+    app.config["EVENT_BROADCASTER"] = broadcaster
+    app.config["STATE_MACHINE"] = FakeStateMachine()
+    app.register_blueprint(events_bp)
+    client = app.test_client()
+
+    resp = client.get("/api/events")
+    body_iter = resp.response
+
+    next(iter(body_iter))
+
+    resp.close()
+
+    assert len(broadcaster.subscribed) == 1
+    assert broadcaster.unsubscribed == [broadcaster.subscribed[0]]
