@@ -38,3 +38,19 @@ def test_drink_placed_can_be_forced_to_not_accepted(monkeypatch):
     client = make_client(monkeypatch, accepted="false")
     resp = client.post("/api/v1/drink/placed")
     assert resp.get_json() == {"accepted": False}
+
+
+def test_status_can_be_forced_to_422(monkeypatch):
+    monkeypatch.setenv("PF_MOCK_FORCE_FAILURE", "422")
+    app = create_pf_mock_app()
+    client = app.test_client()
+    resp = client.get("/api/v1/guide-robot/status")
+    assert resp.status_code == 422
+
+
+def test_status_can_be_forced_to_500(monkeypatch):
+    monkeypatch.setenv("PF_MOCK_FORCE_FAILURE", "500")
+    app = create_pf_mock_app()
+    client = app.test_client()
+    resp = client.get("/api/v1/guide-robot/status")
+    assert resp.status_code == 500
