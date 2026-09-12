@@ -20,6 +20,10 @@ def default_request_id():
     return now.strftime("%Y-%m-%dT%H:%M:%S.") + f"{now.microsecond // 1000:03d}Z"
 
 
+def default_now():
+    return datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+
+
 class StateMachine:
     def __init__(
         self,
@@ -29,6 +33,7 @@ class StateMachine:
         sleep=time.sleep,
         poll_interval=2.0,
         request_id_factory=default_request_id,
+        now=default_now,
     ):
         self._r2 = r2_client
         self._pf = pf_client
@@ -36,6 +41,7 @@ class StateMachine:
         self._sleep = sleep
         self._poll_interval = poll_interval
         self._request_id_factory = request_id_factory
+        self._now = now
 
         self._lock = threading.Lock()
         self._phase = PHASE_WAITING
@@ -43,6 +49,10 @@ class StateMachine:
         self._guest_name = None
         self._request_id = None
         self._error_message = None
+        self._pf_status = None
+        self._pf_status_at = None
+        self._r2_status = None
+        self._r2_status_at = None
 
     def snapshot(self):
         with self._lock:
@@ -55,7 +65,17 @@ class StateMachine:
             "guest_name": self._guest_name,
             "request_id": self._request_id,
             "error_message": self._error_message,
+            "pf_status": self._pf_status,
+            "pf_status_at": self._pf_status_at,
+            "r2_status": self._r2_status,
+            "r2_status_at": self._r2_status_at,
         }
+
+    def _record_pf_status(self, status):
+        self._update(pf_status=status, pf_status_at=self._now())
+
+    def _record_r2_status(self, status):
+        self._update(r2_status=status, r2_status_at=self._now())
 
     def _update(self, **fields):
         with self._lock:
@@ -121,6 +141,7 @@ class StateMachine:
     def _poll_pf_ready(self):
         while True:
             outcome = self._pf.get_guide_robot_status()
+            self._record_pf_status(outcome)
             if outcome == "ready":
                 return True
             if outcome in ("initializing", "timeout", "retryable_error"):
@@ -133,6 +154,7 @@ class StateMachine:
         while True:
             result = self._r2.get_status()
             outcome = result["outcome"]
+            self._record_r2_status(outcome)
             if outcome == "completed":
                 return True
             if outcome in ("loading", "returning", "timeout"):
@@ -157,6 +179,7 @@ class StateMachine:
             result = self._r2.get_status()
             outcome = result["outcome"]
             response_request_id = result["request_id"]
+            self._record_r2_status(outcome)
             if response_request_id is not None and response_request_id != request_id:
                 self._fail("R2から返ったrequest_idが一致しません")
                 return False

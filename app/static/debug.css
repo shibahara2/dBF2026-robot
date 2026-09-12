@@ -1,0 +1,165 @@
+body {
+  font-family: sans-serif;
+  max-width: 860px;
+  margin: 2rem auto;
+  padding: 0 1rem;
+}
+
+.section-label {
+  font-size: 0.85rem;
+  font-weight: bold;
+  color: #666;
+  margin: 1.25rem 0 0.4rem;
+}
+
+#debug-status,
+#connection-targets {
+  display: flex;
+  gap: 1.5rem;
+  border: 1px solid #ccc;
+  padding: 0.75rem 1rem;
+  border-radius: 4px;
+  margin-bottom: 1rem;
+}
+
+#debug-status dt,
+#connection-targets dt {
+  font-weight: bold;
+  font-size: 0.8rem;
+  color: #666;
+}
+
+#debug-status dd,
+#connection-targets dd {
+  margin: 0;
+  font-family: monospace;
+}
+
+#debug-error {
+  background: #fdecea;
+  border: 1px solid #b00020;
+  color: #b00020;
+  padding: 0.75rem 1rem;
+  border-radius: 4px;
+  margin-bottom: 1rem;
+}
+
+#get-status-panel {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  margin-bottom: 1rem;
+}
+
+.get-status-row {
+  flex: 1;
+  min-width: 200px;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  padding: 0.5rem 0.75rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+}
+
+.get-status-label {
+  font-size: 0.75rem;
+  color: #666;
+  font-weight: bold;
+}
+
+.get-status-value {
+  font-family: monospace;
+  font-size: 1.1rem;
+}
+
+.get-status-at {
+  font-size: 0.8rem;
+  color: #666;
+}
+
+.get-status-at span {
+  font-family: monospace;
+}
+
+#sequence-diagram {
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  padding: 0.5rem;
+}
+
+#sequence-svg {
+  width: 100%;
+  height: auto;
+  display: block;
+}
+
+.lifeline {
+  stroke: #bbb;
+  stroke-width: 1.5;
+  stroke-dasharray: 4, 4;
+}
+
+.lane-header rect {
+  fill: #f0f0f0;
+  stroke: #999;
+  rx: 4;
+}
+
+.lane-header text {
+  font-weight: bold;
+  font-size: 13px;
+  fill: #333;
+  text-anchor: middle;
+  dominant-baseline: middle;
+}
+
+.arrow text {
+  font-size: 12px;
+  fill: #888;
+  text-anchor: middle;
+}
+
+.msg-request {
+  stroke: #aaa;
+  stroke-width: 2;
+  color: #aaa;
+}
+
+.msg-response {
+  stroke: #aaa;
+  stroke-width: 1.5;
+  stroke-dasharray: 5, 3;
+  color: #aaa;
+}
+
+#playhead {
+  fill: #1a73e8;
+  opacity: 0.08;
+}
+
+.arrow.active text {
+  fill: #1a73e8;
+  font-weight: bold;
+}
+
+.arrow.active .msg-request,
+.arrow.active .msg-response {
+  stroke: #1a73e8;
+  color: #1a73e8;
+}
+
+#sequence-diagram.error #playhead {
+  fill: #b00020;
+  opacity: 0.1;
+}
+
+#sequence-diagram.error .arrow.active text {
+  fill: #b00020;
+}
+
+#sequence-diagram.error .arrow.active .msg-request,
+#sequence-diagram.error .arrow.active .msg-response {
+  stroke: #b00020;
+  color: #b00020;
+}

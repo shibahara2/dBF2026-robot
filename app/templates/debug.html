@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <title>デバッグ: シーケンス図</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='debug.css') }}">
+</head>
+<body>
+  <main id="app">
+    <h1>デバッグ: 実行中ステップ</h1>
+
+    <h2 class="section-label">接続先</h2>
+    <dl id="connection-targets">
+      <dt>R2 (Humanoid)</dt><dd id="r2-base-url">{{ r2_base_url }}</dd>
+      <dt>AI管制PF</dt><dd id="pf-base-url">{{ pf_base_url }}</dd>
+    </dl>
+
+    <h2 class="section-label">状態機械の生データ（3項目）</h2>
+    <dl id="debug-status">
+      <dt>フェーズ (phase)</dt><dd id="status-phase">-</dd>
+      <dt>現在ステップ (step)</dt><dd id="status-step">-</dd>
+      <dt>来場者名 (guest)</dt><dd id="status-guest">-</dd>
+    </dl>
+
+    <div id="debug-error" hidden>
+      <p id="debug-error-message"></p>
+    </div>
+
+    <h2 class="section-label">GETステータス最新取得</h2>
+    <div id="get-status-panel">
+      <div class="get-status-row">
+        <span class="get-status-label">PF: GET guide-robot/status</span>
+        <span class="get-status-value" id="pf-status-value">-</span>
+        <span class="get-status-at">取得時刻: <span id="pf-status-at">-</span></span>
+      </div>
+      <div class="get-status-row">
+        <span class="get-status-label">R2: GET load-drink/status</span>
+        <span class="get-status-value" id="r2-status-value">-</span>
+        <span class="get-status-at">取得時刻: <span id="r2-status-at">-</span></span>
+      </div>
+      <div class="get-status-row">
+        <span class="get-status-label">現在時刻</span>
+        <span class="get-status-value" id="current-time">-</span>
+      </div>
+    </div>
+
+    <h2 class="section-label">シーケンス図（実行中ステップをハイライト）</h2>
+    <div id="sequence-diagram">
+      <svg id="sequence-svg" viewBox="0 0 800 560" xmlns="http://www.w3.org/2000/svg">
+        <defs>
+          <marker id="arrowhead" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto">
+            <path d="M0,0 L8,4 L0,8 Z" fill="currentColor"></path>
+          </marker>
+        </defs>
+
+        <rect id="playhead" x="20" y="0" width="760" height="0"></rect>
+
+        <line class="lifeline" x1="90" y1="50" x2="90" y2="540"></line>
+        <line class="lifeline" x1="280" y1="50" x2="280" y2="540"></line>
+        <line class="lifeline" x1="490" y1="50" x2="490" y2="540"></line>
+        <line class="lifeline" x1="700" y1="50" x2="700" y2="540"></line>
+
+        <g id="lane-guest" class="lane-header">
+          <rect x="35" y="15" width="110" height="28"></rect>
+          <text x="90" y="34">来場者</text>
+        </g>
+        <g id="lane-venue" class="lane-header">
+          <rect x="215" y="15" width="130" height="28"></rect>
+          <text x="280" y="34">分散ロボ基盤</text>
+        </g>
+        <g id="lane-pf" class="lane-header">
+          <rect x="435" y="15" width="110" height="28"></rect>
+          <text x="490" y="34">AI管制PF</text>
+        </g>
+        <g id="lane-r2" class="lane-header">
+          <rect x="655" y="15" width="90" height="28"></rect>
+          <text x="700" y="34">R2</text>
+        </g>
+
+        <g id="arrow-awaiting_checkin" class="arrow">
+          <line class="msg-request" x1="90" y1="90" x2="280" y2="90" marker-end="url(#arrowhead)"></line>
+          <text x="185" y="82">チェックイン</text>
+        </g>
+
+        <g id="arrow-polling_pf_ready" class="arrow">
+          <line class="msg-request" x1="280" y1="140" x2="490" y2="140" marker-end="url(#arrowhead)"></line>
+          <text x="385" y="132">GET guide-robot/status</text>
+          <line class="msg-response" x1="490" y1="170" x2="280" y2="170" marker-end="url(#arrowhead)"></line>
+          <text x="385" y="162">status = Ready</text>
+        </g>
+
+        <g id="arrow-polling_r2_ready" class="arrow">
+          <line class="msg-request" x1="280" y1="220" x2="700" y2="220" marker-end="url(#arrowhead)"></line>
+          <text x="490" y="212">GET load-drink/status</text>
+          <line class="msg-response" x1="700" y1="250" x2="280" y2="250" marker-end="url(#arrowhead)"></line>
+          <text x="490" y="242">status = completed</text>
+        </g>
+
+        <g id="arrow-sending_load_drink" class="arrow">
+          <line class="msg-request" x1="280" y1="300" x2="700" y2="300" marker-end="url(#arrowhead)"></line>
+          <text x="490" y="292">POST load-drink</text>
+          <line class="msg-response" x1="700" y1="330" x2="280" y2="330" marker-end="url(#arrowhead)"></line>
+          <text x="490" y="322">200 OK</text>
+        </g>
+
+        <g id="arrow-polling_r2_active" class="arrow">
+          <line class="msg-request" x1="280" y1="380" x2="700" y2="380" marker-end="url(#arrowhead)"></line>
+          <text x="490" y="372">GET load-drink/status (poll)</text>
+          <line class="msg-response" x1="700" y1="410" x2="280" y2="410" marker-end="url(#arrowhead)"></line>
+          <text x="490" y="402">status = returning/completed</text>
+        </g>
+
+        <g id="arrow-notifying_pf_placed" class="arrow">
+          <line class="msg-request" x1="280" y1="460" x2="490" y2="460" marker-end="url(#arrowhead)"></line>
+          <text x="385" y="452">POST drink/placed</text>
+          <line class="msg-response" x1="490" y1="490" x2="280" y2="490" marker-end="url(#arrowhead)"></line>
+          <text x="385" y="482">accepted = true</text>
+        </g>
+      </svg>
+    </div>
+  </main>
+  <script src="{{ url_for('static', filename='debug.js') }}"></script>
+</body>
+</html>

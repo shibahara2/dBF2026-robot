@@ -39,8 +39,8 @@ class FakePFClient:
         return self.placed_result
 
 
-def make_state_machine(r2, pf, changes, sleeps):
-    return StateMachine(
+def make_state_machine(r2, pf, changes, sleeps, now=None):
+    kwargs = dict(
         r2_client=r2,
         pf_client=pf,
         on_change=changes.append,
@@ -48,6 +48,9 @@ def make_state_machine(r2, pf, changes, sleeps):
         poll_interval=2.0,
         request_id_factory=lambda: "RID",
     )
+    if now is not None:
+        kwargs["now"] = now
+    return StateMachine(**kwargs)
 
 
 def test_try_start_from_awaiting_checkin_succeeds_and_transitions():
@@ -239,3 +242,30 @@ def test_try_reset_fails_when_not_in_error():
         FakeR2Client([{"outcome": "completed", "request_id": "none"}]), FakePFClient(["ready"]), [], []
     )
     assert sm.try_reset() is False
+
+
+def test_pf_and_r2_get_status_are_recorded_with_timestamps():
+    changes = []
+    r2 = FakeR2Client(
+        status_sequence=[
+            {"outcome": "loading", "request_id": "none"},
+            {"outcome": "completed", "request_id": "none"},
+            {"outcome": "loading", "request_id": "RID"},
+            {"outcome": "completed", "request_id": "RID"},
+        ],
+        load_drink_result="accepted",
+    )
+    pf = FakePFClient(status_sequence=["initializing", "ready"], placed_result=True)
+    timestamps = iter(
+        [f"2026-09-13T09:00:{i:02d}Z" for i in range(20)]
+    )
+    sm = make_state_machine(r2, pf, changes, [], now=lambda: next(timestamps))
+
+    sm.try_start("Tanaka")
+    sm.run_started_cycle()
+
+    final = sm.snapshot()
+    assert final["pf_status"] == "ready"
+    assert final["pf_status_at"] is not None
+    assert final["r2_status"] == "completed"
+    assert final["r2_status_at"] is not None
