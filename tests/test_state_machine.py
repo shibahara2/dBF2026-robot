@@ -116,3 +116,126 @@ def test_cycle_passes_through_active_phase():
 
     phases_seen = [c["phase"] for c in changes]
     assert PHASE_ACTIVE in phases_seen
+
+
+def test_pf_fatal_error_moves_to_error_phase():
+    changes = []
+    r2 = FakeR2Client([{"outcome": "completed", "request_id": "none"}])
+    pf = FakePFClient(["unexpected"])
+    sm = make_state_machine(r2, pf, changes, [])
+
+    sm.try_start("Tanaka")
+    sm.run_started_cycle()
+
+    final = sm.snapshot()
+    assert final["phase"] == PHASE_ERROR
+    assert "AI管制PF" in final["error_message"]
+    assert final["guest_name"] == "Tanaka"
+
+
+def test_r2_failed_during_waiting_moves_to_error_phase():
+    changes = []
+    r2 = FakeR2Client([{"outcome": "failed", "request_id": "none"}])
+    pf = FakePFClient(["ready"])
+    sm = make_state_machine(r2, pf, changes, [])
+
+    sm.try_start("Tanaka")
+    sm.run_started_cycle()
+
+    assert sm.snapshot()["phase"] == PHASE_ERROR
+
+
+def test_r2_validation_error_on_load_drink_moves_to_error_phase():
+    changes = []
+    r2 = FakeR2Client(
+        [{"outcome": "completed", "request_id": "none"}], load_drink_result="validation_error"
+    )
+    pf = FakePFClient(["ready"])
+    sm = make_state_machine(r2, pf, changes, [])
+
+    sm.try_start("Tanaka")
+    sm.run_started_cycle()
+
+    assert sm.snapshot()["phase"] == PHASE_ERROR
+    assert r2.load_drink_calls == ["RID"]
+
+
+def test_r2_request_id_mismatch_during_active_moves_to_error_phase():
+    changes = []
+    r2 = FakeR2Client(
+        status_sequence=[
+            {"outcome": "completed", "request_id": "none"},
+            {"outcome": "loading", "request_id": "OTHER"},
+        ],
+        load_drink_result="accepted",
+    )
+    pf = FakePFClient(["ready"])
+    sm = make_state_machine(r2, pf, changes, [])
+
+    sm.try_start("Tanaka")
+    sm.run_started_cycle()
+
+    assert sm.snapshot()["phase"] == PHASE_ERROR
+
+
+def test_r2_failed_during_active_moves_to_error_phase():
+    changes = []
+    r2 = FakeR2Client(
+        status_sequence=[
+            {"outcome": "completed", "request_id": "none"},
+            {"outcome": "failed", "request_id": "RID"},
+        ],
+        load_drink_result="accepted",
+    )
+    pf = FakePFClient(["ready"])
+    sm = make_state_machine(r2, pf, changes, [])
+
+    sm.try_start("Tanaka")
+    sm.run_started_cycle()
+
+    assert sm.snapshot()["phase"] == PHASE_ERROR
+
+
+def test_pf_drink_placed_not_accepted_moves_to_error_immediately():
+    changes = []
+    r2 = FakeR2Client(
+        status_sequence=[
+            {"outcome": "completed", "request_id": "none"},
+            {"outcome": "completed", "request_id": "RID"},
+        ],
+        load_drink_result="accepted",
+    )
+    pf = FakePFClient(status_sequence=["ready"], placed_result=False)
+    sm = make_state_machine(r2, pf, changes, [])
+
+    sm.try_start("Tanaka")
+    sm.run_started_cycle()
+
+    final = sm.snapshot()
+    assert final["phase"] == PHASE_ERROR
+    assert pf.placed_calls == 1
+
+
+def test_try_reset_from_error_returns_to_awaiting_checkin():
+    changes = []
+    r2 = FakeR2Client([{"outcome": "failed", "request_id": "none"}])
+    pf = FakePFClient(["ready"])
+    sm = make_state_machine(r2, pf, changes, [])
+
+    sm.try_start("Tanaka")
+    sm.run_started_cycle()
+    assert sm.snapshot()["phase"] == PHASE_ERROR
+
+    assert sm.try_reset() is True
+    final = sm.snapshot()
+    assert final["phase"] == PHASE_WAITING
+    assert final["step"] == STEP_AWAITING_CHECKIN
+    assert final["guest_name"] is None
+    assert final["error_message"] is None
+
+
+def test_try_reset_fails_when_not_in_error():
+    sm = make_state_machine(
+        FakeR2Client([{"outcome": "completed", "request_id": "none"}]), FakePFClient(["ready"]), [], []
+    )
+    assert sm.try_reset() is False
