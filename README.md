@@ -2,9 +2,21 @@
 
 Flask backend that orchestrates a check-in -> guide-robot-ready -> drink-load
 -> drink-delivered cycle against the AI管制PF (guide robot control plane) and
-R2/Themis (drink-serving robot) systems, exposing progress over SSE.
+R2/Themis (drink-serving robot) systems, exposing progress over SSE. A
+self-service venue kiosk UI (`GET /`) lets a guest check in and watch that
+progress in a browser.
 
 ## Install
+
+Using [uv](https://docs.astral.sh/uv/):
+
+```
+uv venv .venv
+uv pip install -r requirements.txt --python .venv/bin/python
+source .venv/bin/activate
+```
+
+Or with plain pip:
 
 ```
 pip install -r requirements.txt
@@ -19,6 +31,11 @@ development:
 python run_mocks.py   # starts the R2 mock on :5001 and the PF mock on :5002
 python run.py          # starts this app on :5000
 ```
+
+Then open `http://localhost:5000/` in a browser: enter a name to check in
+and watch the check-in -> guide-robot-ready -> drink-load -> drink-delivered
+progress update live via SSE. While one guest's cycle is in progress,
+anyone else who opens the page sees a waiting message instead of the form.
 
 For a full manual walkthrough (check-in, watching SSE progress, forcing error
 paths, resetting), see
