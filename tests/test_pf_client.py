@@ -74,6 +74,18 @@ def test_get_guide_robot_status_unexpected_body_is_fatal():
 
 
 @responses.activate
+def test_get_guide_robot_status_malformed_json_is_fatal_not_raising():
+    responses.add(
+        responses.GET,
+        "http://pf.test/api/v1/guide-robot/status",
+        body="not json",
+        status=200,
+        content_type="application/json",
+    )
+    assert make_client().get_guide_robot_status() == "fatal_error"
+
+
+@responses.activate
 def test_post_drink_placed_accepted():
     responses.add(
         responses.POST,
@@ -112,5 +124,17 @@ def test_post_drink_placed_timeout():
         responses.POST,
         "http://pf.test/api/v1/drink/placed",
         body=requests.exceptions.Timeout(),
+    )
+    assert make_client().post_drink_placed() is False
+
+
+@responses.activate
+def test_post_drink_placed_malformed_json_is_false_not_raising():
+    responses.add(
+        responses.POST,
+        "http://pf.test/api/v1/drink/placed",
+        body="not json",
+        status=200,
+        content_type="application/json",
     )
     assert make_client().post_drink_placed() is False

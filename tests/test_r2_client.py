@@ -63,6 +63,18 @@ def test_get_status_500_is_fatal():
 
 
 @responses.activate
+def test_get_status_malformed_json_is_fatal_not_raising():
+    responses.add(
+        responses.GET,
+        "http://r2.test/v1/commands/load-drink/status",
+        body="not json",
+        status=200,
+        content_type="application/json",
+    )
+    assert make_client().get_status() == {"outcome": "fatal_error", "request_id": None}
+
+
+@responses.activate
 def test_post_load_drink_accepted_sends_expected_body():
     responses.add(
         responses.POST,

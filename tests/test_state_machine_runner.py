@@ -94,6 +94,34 @@ def test_request_reset_is_synchronous_and_does_not_need_the_thread():
     assert sm.snapshot()["step"] == STEP_AWAITING_CHECKIN
 
 
+class RaisingPFClient:
+    def get_guide_robot_status(self):
+        raise RuntimeError("boom: unexpected failure deep in the client")
+
+    def post_drink_placed(self):
+        return True
+
+
+def test_unexpected_exception_in_cycle_does_not_wedge_the_thread():
+    r2 = FakeR2Client(status_sequence=[{"outcome": "completed", "request_id": "none"}])
+    pf = RaisingPFClient()
+    sm = StateMachine(r2_client=r2, pf_client=pf, on_change=lambda snap: None, sleep=lambda s: None)
+    runner = StateMachineRunner(sm)
+    start_runner_thread(runner)
+
+    assert runner.request_checkin("Tanaka") is True
+
+    assert wait_until(lambda: sm.snapshot()["phase"] == "error")
+
+    # The background thread must still be alive and able to service further
+    # requests (i.e. it wasn't killed by the unhandled exception).
+    assert runner.request_reset() is True
+    assert wait_until(
+        lambda: sm.snapshot()["phase"] == PHASE_WAITING
+        and sm.snapshot()["step"] == STEP_AWAITING_CHECKIN
+    )
+
+
 def test_request_reset_rejected_when_not_in_error():
     sm = StateMachine(
         r2_client=FakeR2Client([{"outcome": "completed", "request_id": "none"}]),

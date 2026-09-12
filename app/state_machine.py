@@ -62,7 +62,7 @@ class StateMachine:
             for key, value in fields.items():
                 setattr(self, f"_{key}", value)
             snap = self._snapshot_locked()
-        self._on_change(snap)
+            self._on_change(snap)
 
     def try_start(self, guest_name):
         with self._lock:
@@ -74,7 +74,7 @@ class StateMachine:
             self._request_id = None
             self._error_message = None
             snap = self._snapshot_locked()
-        self._on_change(snap)
+            self._on_change(snap)
         return True
 
     def try_reset(self):
@@ -95,6 +95,10 @@ class StateMachine:
 
     def _fail(self, message):
         self._update(phase=PHASE_ERROR, error_message=message)
+
+    def fail_unexpected(self, message):
+        """Public entry point used by the runner's last-resort exception guard."""
+        self._fail(message)
 
     def run_started_cycle(self):
         if not self._poll_pf_ready():
@@ -188,4 +192,9 @@ class StateMachineRunner:
     def run_forever(self):
         while True:
             self._start_signal.get()
-            self._state_machine.run_started_cycle()
+            try:
+                self._state_machine.run_started_cycle()
+            except Exception:
+                self._state_machine.fail_unexpected(
+                    "内部エラーが発生しました。ログを確認してください。"
+                )

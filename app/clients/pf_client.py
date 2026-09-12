@@ -21,7 +21,11 @@ class PFClient:
         if resp.status_code != 200:
             return "fatal_error"
 
-        status = resp.json().get("status")
+        try:
+            status = resp.json().get("status")
+        except (ValueError, AttributeError):
+            return "fatal_error"
+
         if status == "Ready":
             return "ready"
         if status == "Initializing":
@@ -38,4 +42,7 @@ class PFClient:
 
         if resp.status_code != 200:
             return False
-        return resp.json().get("accepted") is True
+        try:
+            return resp.json().get("accepted") is True
+        except (ValueError, AttributeError):
+            return False

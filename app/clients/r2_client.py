@@ -21,9 +21,12 @@ class R2Client:
         if resp.status_code != 200:
             return {"outcome": "fatal_error", "request_id": None}
 
-        body = resp.json()
-        request_id = body.get("request_id")
-        status = body.get("status")
+        try:
+            body = resp.json()
+            request_id = body.get("request_id")
+            status = body.get("status")
+        except (ValueError, AttributeError):
+            return {"outcome": "fatal_error", "request_id": None}
         if status in ("loading", "returning", "completed", "failed"):
             return {"outcome": status, "request_id": request_id}
         return {"outcome": "fatal_error", "request_id": request_id}
