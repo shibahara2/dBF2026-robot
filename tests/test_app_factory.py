@@ -82,3 +82,6 @@ def test_index_route_served_through_app_factory():
 
     assert resp.status_code == 200
     assert b'id="checkin-form"' in resp.data
+
+    assert client.get("/static/app.js").status_code == 200
+    assert client.get("/static/style.css").status_code == 200

@@ -54,16 +54,21 @@ checkinForm.addEventListener("submit", (event) => {
   if (!name) {
     return;
   }
-  setMyGuestName(name);
   fetch("/api/checkin", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ name: name }),
-  });
+  })
+    .then((resp) => {
+      if (resp.ok) {
+        setMyGuestName(name);
+      }
+    })
+    .catch(() => {});
 });
 
 resetButton.addEventListener("click", () => {
-  fetch("/api/reset", { method: "POST" });
+  fetch("/api/reset", { method: "POST" }).catch(() => {});
 });
 
 const eventSource = new EventSource("/api/events");
