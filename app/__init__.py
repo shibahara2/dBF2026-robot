@@ -7,6 +7,7 @@ from .clients.pf_client import PFClient
 from .clients.r2_client import R2Client
 from .routes.checkin import checkin_bp
 from .routes.events import events_bp
+from .routes.ui import ui_bp
 from .sse import EventBroadcaster
 from .state_machine import StateMachine, StateMachineRunner
 
@@ -39,6 +40,7 @@ def create_app(r2_client=None, pf_client=None):
 
     app.register_blueprint(checkin_bp)
     app.register_blueprint(events_bp)
+    app.register_blueprint(ui_bp)
 
     thread = threading.Thread(target=runner.run_forever, daemon=True)
     thread.start()

@@ -72,3 +72,13 @@ def test_second_checkin_is_rejected_immediately_after_first():
 
     second = client.post("/api/checkin", json={"name": "Suzuki"})
     assert second.status_code in (200, 409)
+
+
+def test_index_route_served_through_app_factory():
+    app = create_app(r2_client=FakeR2Client(), pf_client=FakePFClient())
+    client = app.test_client()
+
+    resp = client.get("/")
+
+    assert resp.status_code == 200
+    assert b'id="checkin-form"' in resp.data
