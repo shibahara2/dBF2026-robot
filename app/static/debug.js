@@ -33,7 +33,13 @@ function toSecondsTime(isoString) {
   if (!isoString) {
     return "-";
   }
-  return isoString.slice(11, 19);
+  return new Date(isoString).toLocaleTimeString("ja-JP", {
+    timeZone: "Asia/Tokyo",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+    hour12: false,
+  });
 }
 
 function render(snapshot) {

@@ -1,4 +1,5 @@
 from flask import Flask
+from pathlib import Path
 
 from app.routes.ui import ui_bp
 
@@ -87,3 +88,11 @@ def test_debug_page_includes_static_assets():
     assert resp.status_code == 200
     assert b"debug.js" in resp.data
     assert b"debug.css" in resp.data
+
+
+def test_debug_clock_formats_times_in_tokyo_timezone():
+    debug_js = Path(__file__).parents[1] / "app" / "static" / "debug.js"
+
+    source = debug_js.read_text()
+
+    assert 'timeZone: "Asia/Tokyo"' in source
