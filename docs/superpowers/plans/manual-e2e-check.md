@@ -2,8 +2,8 @@
 
 前提: `pip install -r requirements.txt` 済み。
 
-1. ターミナル1: `python run_mocks.py`（R2モックが:5001、PFモックが:5002で起動）
-2. ターミナル2: `R2_MOCK_LOADING_SECONDS=3 R2_MOCK_RETURNING_SECONDS=3 python run.py`（本体が:5000で起動）
+1. ターミナル1: `R2_MOCK_LOADING_SECONDS=3 R2_MOCK_RETURNING_SECONDS=3 python run_mocks.py`（R2モックが:5001、PFモックが:5002で起動）
+2. ターミナル2: `python run.py`（本体が:5000で起動）
 3. ターミナル3で以下を順に実行し、状態がwaiting→active→waitingと遷移することを確認する:
    - `curl -N http://localhost:5000/api/events &`（SSEの生ログが流れ始める）
    - `curl -X POST http://localhost:5000/api/checkin -H "Content-Type: application/json" -d '{"name":"田中太郎"}'`
