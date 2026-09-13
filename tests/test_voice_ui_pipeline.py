@@ -1,3 +1,5 @@
+import logging
+
 from voice_ui.pipeline import run_checkin_once
 
 
@@ -32,12 +34,13 @@ class _FakeTranscriber:
 
 
 class _FakeCheckinClient:
-    def __init__(self):
+    def __init__(self, result="accepted"):
         self.calls = []
+        self._result = result
 
     def checkin(self, name):
         self.calls.append(name)
-        return "accepted"
+        return self._result
 
 
 def test_confident_transcription_triggers_checkin_with_extracted_name():
@@ -59,6 +62,51 @@ def test_confident_transcription_triggers_checkin_with_extracted_name():
     assert checkin_client.calls == ["田中太郎"]
 
 
+def test_successful_checkin_logs_extracted_name_and_checkin_result(caplog):
+    mic = _FakeMicSource([object()])
+    vad = _FakeVadSegmenter(utterance_after=1)
+    transcriber = _FakeTranscriber(("田中太郎です", 0.1, -0.2))
+    checkin_client = _FakeCheckinClient()
+
+    with caplog.at_level(logging.INFO, logger="voice_ui.pipeline"):
+        outcome = run_checkin_once(
+            mic,
+            vad,
+            transcriber,
+            checkin_client,
+            no_speech_prob_max=0.6,
+            avg_logprob_min=-1.0,
+        )
+
+    assert outcome == "checked_in"
+    joined = "\n".join(record.message for record in caplog.records)
+    assert "田中太郎" in joined
+    assert "accepted" in joined
+
+
+def test_non_accepted_checkin_result_is_logged_even_though_outcome_stays_checked_in(caplog):
+    mic = _FakeMicSource([object()])
+    vad = _FakeVadSegmenter(utterance_after=1)
+    transcriber = _FakeTranscriber(("田中太郎です", 0.1, -0.2))
+    checkin_client = _FakeCheckinClient(result="already_in_progress")
+
+    with caplog.at_level(logging.INFO, logger="voice_ui.pipeline"):
+        outcome = run_checkin_once(
+            mic,
+            vad,
+            transcriber,
+            checkin_client,
+            no_speech_prob_max=0.6,
+            avg_logprob_min=-1.0,
+        )
+
+    # pipeline's own three-way outcome contract is unchanged...
+    assert outcome == "checked_in"
+    # ...but the actual checkin_client result is visible in the logs.
+    joined = "\n".join(record.message for record in caplog.records)
+    assert "already_in_progress" in joined
+
+
 def test_low_confidence_transcription_is_rejected_without_checkin():
     mic = _FakeMicSource([object()])
     vad = _FakeVadSegmenter(utterance_after=1)
@@ -76,6 +124,28 @@ def test_low_confidence_transcription_is_rejected_without_checkin():
 
     assert outcome == "rejected_low_confidence"
     assert checkin_client.calls == []
+
+
+def test_low_confidence_rejection_logs_text_and_confidence_scores(caplog):
+    mic = _FakeMicSource([object()])
+    vad = _FakeVadSegmenter(utterance_after=1)
+    transcriber = _FakeTranscriber(("ノイズ", 0.9, -5.0))
+    checkin_client = _FakeCheckinClient()
+
+    with caplog.at_level(logging.INFO, logger="voice_ui.pipeline"):
+        run_checkin_once(
+            mic,
+            vad,
+            transcriber,
+            checkin_client,
+            no_speech_prob_max=0.6,
+            avg_logprob_min=-1.0,
+        )
+
+    joined = "\n".join(record.message for record in caplog.records)
+    assert "ノイズ" in joined
+    assert "0.9" in joined
+    assert "-5.0" in joined
 
 
 def test_no_chunk_available_returns_without_calling_transcriber():

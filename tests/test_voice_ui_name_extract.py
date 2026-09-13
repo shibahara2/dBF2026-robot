@@ -23,3 +23,21 @@ def test_strips_to_moushimasu():
 
 def test_strips_surrounding_whitespace():
     assert extract_name("  田中太郎です  ") == "田中太郎"
+
+
+def test_strips_trailing_japanese_period_after_desu():
+    assert extract_name("田中太郎です。") == "田中太郎"
+
+
+def test_strips_trailing_japanese_period_without_desu():
+    assert extract_name("田中太郎。") == "田中太郎"
+
+
+def test_strips_leading_and_trailing_with_trailing_punctuation():
+    assert extract_name("名前は田中太郎です。") == "田中太郎"
+
+
+def test_strips_various_trailing_punctuation_marks():
+    assert extract_name("田中太郎！") == "田中太郎"
+    assert extract_name("田中太郎？") == "田中太郎"
+    assert extract_name("田中太郎、") == "田中太郎"

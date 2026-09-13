@@ -1,10 +1,13 @@
 import io
+import logging
 import threading
 import time
 import wave
 
 import numpy as np
 import requests
+
+logger = logging.getLogger(__name__)
 
 _DEFAULT_SPEAKER_ID = 74
 
@@ -89,4 +92,7 @@ class VoicevoxSpeaker:
                 )
                 self._output_sink.write(waveform, sample_rate, channels)
             except Exception:  # noqa: BLE001 - keep the speak loop alive across failures
+                logger.warning(
+                    "音声合成/出力に失敗しました。text=%r", text, exc_info=True
+                )
                 continue

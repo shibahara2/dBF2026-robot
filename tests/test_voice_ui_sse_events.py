@@ -45,3 +45,24 @@ def test_iter_sse_events_skips_blank_lines():
     events = list(iter_sse_events("http://flask.test"))
 
     assert events == [{"phase": "waiting"}]
+
+
+@responses.activate
+def test_iter_sse_events_skips_malformed_json_line_and_continues():
+    body = (
+        b"data: {not valid json\n\n"
+        + b"data: "
+        + json.dumps({"phase": "active", "step": "polling_r2_active"}).encode("utf-8")
+        + b"\n\n"
+    )
+    responses.add(
+        responses.GET,
+        "http://flask.test/api/events",
+        body=body,
+        status=200,
+        content_type="text/event-stream",
+    )
+
+    events = list(iter_sse_events("http://flask.test"))
+
+    assert events == [{"phase": "active", "step": "polling_r2_active"}]
