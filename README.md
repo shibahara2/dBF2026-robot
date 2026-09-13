@@ -41,6 +41,19 @@ For a full manual walkthrough (check-in, watching SSE progress, forcing error
 paths, resetting), see
 `docs/superpowers/plans/manual-e2e-check.md`.
 
+## 音声IF (voice_ui) の起動 (任意)
+
+マイク・スピーカーが接続された端末で、名前の音声チェックインと進行状況の
+読み上げを行いたい場合は、上記のFlaskアプリ起動に加えて以下も起動する:
+
+```
+python -m voice_ui.main
+```
+
+VOICEVOXエンジン（`http://127.0.0.1:50021`）が別途起動している必要がある。
+設定可能な環境変数は`voice_ui/config.py`を参照。詳細は
+`docs/superpowers/specs/2026-09-13-voice-ui-design.md`を参照。
+
 ## Environment variables
 
 | Variable | Default | Purpose |
