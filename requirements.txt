@@ -2,9 +2,17 @@ flask==3.0.3
 requests==2.32.3
 pytest==8.3.3
 responses==0.25.3
-faster-whisper==1.0.3
+openai-whisper==20250625
 silero-vad==5.1.2
-torch==2.4.1
-torchaudio==2.4.1
+
+# CUDA-enabled torch/torchaudio for aarch64 (DGX Spark, GB10 Blackwell) —
+# PyPI only ships CPU-only torch for linux_aarch64. Pinned to a direct wheel
+# URL (cp312, matching this project's Python version) rather than
+# --extra-index-url, since that index also carries unrelated packages
+# (e.g. requests) and conflicts with uv's default dependency-confusion
+# protection ("first index wins").
+torch @ https://download.pytorch.org/whl/cu130/torch-2.10.0%2Bcu130-cp312-cp312-manylinux_2_28_aarch64.whl
+torchaudio @ https://download.pytorch.org/whl/cu130/torchaudio-2.10.0%2Bcu130-cp312-cp312-manylinux_2_28_aarch64.whl
+
 sounddevice==0.4.7
 numpy==1.26.4

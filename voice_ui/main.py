@@ -124,7 +124,11 @@ def main():
     vad_segmenter = SileroVadSegmenter(
         sample_rate=16000, trailing_silence_ms=config.VAD_TRAILING_SILENCE_MS
     )
-    transcriber = WhisperTranscriber(model_size=config.WHISPER_MODEL)
+    transcriber = WhisperTranscriber(
+        model_size=config.WHISPER_MODEL,
+        device=config.WHISPER_DEVICE,
+        fp16=config.WHISPER_FP16,
+    )
 
     speaker_sink = SounddeviceSpeakerSink()
     speaker = VoicevoxSpeaker(base_url=config.VOICEVOX_URL, output_sink=speaker_sink)

@@ -8,21 +8,28 @@ def is_confident(
 
 
 class WhisperTranscriber:
-    def __init__(self, model_size: str = "base", model=None):
-        self._model = model or _load_default_model(model_size)
+    def __init__(
+        self,
+        model_size: str = "large-v3",
+        device: str = "cuda",
+        fp16: bool = True,
+        model=None,
+    ):
+        self._fp16 = fp16
+        self._model = model or _load_default_model(model_size, device)
 
     def transcribe(self, audio):
-        segments, _info = self._model.transcribe(audio, language="ja")
-        segments = list(segments)
+        result = self._model.transcribe(audio, language="ja", fp16=self._fp16)
+        segments = result.get("segments", [])
         if not segments:
             return "", 1.0, -10.0
-        text = "".join(seg.text for seg in segments).strip()
-        no_speech_prob = max(seg.no_speech_prob for seg in segments)
-        avg_logprob = sum(seg.avg_logprob for seg in segments) / len(segments)
+        text = result["text"].strip()
+        no_speech_prob = max(seg["no_speech_prob"] for seg in segments)
+        avg_logprob = sum(seg["avg_logprob"] for seg in segments) / len(segments)
         return text, no_speech_prob, avg_logprob
 
 
-def _load_default_model(model_size):
-    from faster_whisper import WhisperModel
+def _load_default_model(model_size, device):
+    import whisper
 
-    return WhisperModel(model_size, device="auto", compute_type="int8")
+    return whisper.load_model(model_size, device=device)
