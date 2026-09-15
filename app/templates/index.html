@@ -1,0 +1,29 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <title>分散ロボ基盤</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+  <main id="app">
+    <section id="form-view">
+      <h1>チェックイン</h1>
+      <form id="checkin-form">
+        <input id="guest-name-input" name="name" type="text" placeholder="お名前" required>
+        <button type="submit">チェックイン</button>
+      </form>
+    </section>
+
+    <section id="progress-view" hidden>
+      <p id="progress-message"></p>
+    </section>
+
+    <section id="error-view" hidden>
+      <p id="error-message"></p>
+      <button id="reset-button" type="button">リセット</button>
+    </section>
+  </main>
+  <script src="{{ url_for('static', filename='app.js') }}"></script>
+</body>
+</html>
