@@ -8,11 +8,22 @@
 <body>
   <main id="app">
     <section id="form-view">
-      <h1>チェックイン</h1>
+      <h1>dBF Hotel</h1>
+
+      <p>
+        ようこそお越しくださいました。<br>
+        お名前を入力してチェックインしてください。
+      </p>
+
       <form id="checkin-form">
-        <input id="guest-name-input" name="name" type="text" placeholder="お名前" value="田中太郎" required>
-        <button type="submit">チェックイン</button>
+        <input id="guest-name-input" name="name" type="text" value="田中太郎" placeholder="お名前" required>
+
+        <button type="submit">
+          チェックイン
+        </button>
       </form>
+
+      <div id="error-view"></div>
     </section>
 
     <section id="progress-view" hidden>
