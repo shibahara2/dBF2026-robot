@@ -65,8 +65,15 @@ to collect the full test suite. The no-GPU override instead builds the same
 reservation.
 
 For no-GPU hosts, prepend the same override files to `run` commands, for
-example `docker compose -f compose.yaml -f compose.no-gpu.yaml run --rm
-devcontainer pytest -q`.
+example:
+
+```bash
+docker compose -f compose.yaml -f compose.no-gpu.yaml run --rm devcontainer pytest -q --ignore=tests/test_voice_ui_main.py --ignore=tests/test_integration_mocks.py
+```
+
+The no-GPU devcontainer intentionally uses `requirements-core.txt` without
+voice dependencies, so this runs the verified non-voice suite; the complete
+voice test suite requires the default GPU stack.
 
 ### Runtime credentials
 
