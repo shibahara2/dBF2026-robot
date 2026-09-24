@@ -6,6 +6,75 @@ R2/Themis (drink-serving robot) systems, exposing progress over SSE. A
 self-service venue kiosk UI (`GET /`) lets a guest check in and watch that
 progress in a browser.
 
+## Docker / Compose development environment
+
+### Prerequisites
+
+Install Docker Engine (or Docker Desktop) with the Docker Compose plugin. The
+default stack also starts the GPU-backed `voice-ui` service, so it requires an
+NVIDIA GPU, a compatible NVIDIA driver, and the
+[NVIDIA Container Toolkit](https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/latest/install-guide.html).
+
+On a machine without GPU support, use the no-GPU override below. It removes
+`voice-ui`; voice input and spoken status updates are unavailable in that
+mode, while the Flask app and mock robot services remain available.
+
+### Start the stack
+
+The default command builds and starts the complete stack, including the
+GPU-backed voice service:
+
+```bash
+docker compose up --build
+```
+
+For a host without an NVIDIA GPU, build and start the app, mocks, and
+development container without the voice service:
+
+```bash
+docker compose -f compose.yaml -f compose.no-gpu.yaml up --build
+```
+
+The kiosk is available at `http://localhost:5000/`. Stop either stack with
+`Ctrl-C` (or run the same Compose command with `down`).
+
+### Development container
+
+Start an interactive shell in the repository-mounted development container:
+
+```bash
+docker compose run --rm devcontainer bash
+```
+
+Run Codex or the Python test suite without first opening a shell:
+
+```bash
+docker compose run --rm devcontainer codex
+docker compose run --rm devcontainer pytest -q
+```
+
+For no-GPU hosts, prepend the same override files to `run` commands, for
+example `docker compose -f compose.yaml -f compose.no-gpu.yaml run --rm
+devcontainer pytest -q`.
+
+### Runtime credentials
+
+Inject credentials at runtime through your shell environment or a local
+`.env` file (which is ignored by Git). `OPENAI_API_KEY` is passed to the
+development container for Codex API authentication; alternatively, run
+`docker compose run --rm devcontainer codex login` to use Codex login. Set
+`PF_API_KEY` for the app's AI管制PF requests:
+
+```bash
+export OPENAI_API_KEY="<openai-api-key>"
+export PF_API_KEY="<pf-api-key>"
+docker compose up --build
+```
+
+Never copy secrets into Dockerfiles, image layers, or committed files. Pass
+them only at runtime as environment variables or through an uncommitted
+`.env` file.
+
 ## Install
 
 Using [uv](https://docs.astral.sh/uv/):
