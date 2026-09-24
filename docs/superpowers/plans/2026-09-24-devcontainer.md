@@ -2,9 +2,9 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Add a reproducible Docker Compose environment with a GPU/all-included default, a no-GPU override, and a Codex-enabled `devcontainer` service.
+**Goal:** Add two selectable Docker Compose environments, GPU/all-included and no-GPU, each with a Codex-enabled `devcontainer` service.
 
-**Architecture:** `compose.yaml` is the default GPU stack; `compose.no-gpu.yaml` overrides GPU-specific services and removes voice services. Core Python dependencies remain separate from GPU-only voice dependencies. The `devcontainer` image contains Codex CLI and uses a container-local `CODEX_HOME` with bypass settings.
+**Architecture:** `compose.gpu.yaml` and `compose.no-gpu.yaml` are independent selectable stacks. Core Python dependencies remain separate from GPU-only voice dependencies. The GPU `devcontainer` uses the voice image; the no-GPU `devcontainer` uses the core image. Both contain Codex CLI and use a container-local `CODEX_HOME` with bypass settings.
 
 **Tech Stack:** Docker Compose, Python 3.12, NVIDIA Container Toolkit, CUDA 13.0, Node.js 22, Codex CLI, pytest.
 
@@ -12,8 +12,8 @@
 
 ## Global Constraints
 
-- Default command is `docker compose up` and is GPU-capable/all-included.
-- No-GPU command is `docker compose -f compose.yaml -f compose.no-gpu.yaml up`.
+- GPU command is `docker compose -f compose.gpu.yaml up` and is all-included.
+- No-GPU command is `docker compose -f compose.no-gpu.yaml up`.
 - The logical development service is named `devcontainer`.
 - Voice dependencies are not installed in the core image.
 - Secrets stay outside images and source control.
@@ -99,14 +99,15 @@ Run: `docker compose config` after Task 3 is complete.
 
 Expected: valid merged Compose configuration.
 
-### Task 3: Define default GPU Compose stack
+### Task 3: Define selectable Compose stacks
 
 **Files:**
-- Create: `compose.yaml`
+- Create: `compose.gpu.yaml`
+- Create: `compose.no-gpu.yaml`
 - Create: `docker/codex-config.toml`
 
 **Interfaces:**
-- Services: `app`, `mocks`, `voice-ui`, `devcontainer`.
+- GPU services: `app`, `mocks`, `voice-ui`, `devcontainer`; no-GPU services: `app`, `mocks`, `devcontainer`.
 - `voice-ui` requests NVIDIA GPU access and depends on the application/mocks as appropriate.
 - `devcontainer` mounts the repository at `/workspace` and a named volume at `/opt/codex-home`.
 
@@ -120,7 +121,7 @@ Build from `docker/voice-gpu.Dockerfile`, request one NVIDIA GPU with `capabilit
 
 - [ ] **Step 3: Define the devcontainer service**
 
-Build from `docker/devcontainer.Dockerfile`, mount the project and `docker/codex-config.toml` into the container-local Codex home, pass through only runtime credentials needed by Codex, and use an interactive long-running command.
+Build the GPU variant from `docker/devcontainer-gpu.Dockerfile` and the no-GPU variant from `docker/devcontainer.Dockerfile`; mount the project and `docker/codex-config.toml` into the container-local Codex home, pass through only runtime credentials needed by Codex, and use an interactive long-running command.
 
 - [ ] **Step 4: Add Codex bypass configuration**
 
@@ -133,15 +134,15 @@ sandbox_mode = "danger-full-access"
 
 Keep this file outside `.codex/` in the repository so it cannot alter host Codex behavior when the user works on the host.
 
-### Task 4: Add no-GPU Compose override
+### Task 4: Add independent no-GPU Compose stack
 
 **Files:**
-- Create: `compose.no-gpu.yaml`
+- Modify: `compose.no-gpu.yaml`
 
 **Interfaces:**
-- The merged no-GPU configuration must preserve `app`, `mocks`, and `devcontainer` service names.
-- The merged no-GPU configuration must not require NVIDIA runtime/device reservations.
-- The merged no-GPU configuration must omit `voice-ui`.
+- The no-GPU configuration must define `app`, `mocks`, and `devcontainer` service names.
+- The no-GPU configuration must not require NVIDIA runtime/device reservations.
+- The no-GPU configuration must omit `voice-ui`.
 
 - [ ] **Step 1: Override the development image**
 
@@ -149,15 +150,15 @@ Point `devcontainer` at the core-based development image or remove GPU-specific 
 
 - [ ] **Step 2: Disable voice service**
 
-Use the Compose override to make the GPU voice service unavailable in the no-GPU invocation without changing the default file.
+Define the no-GPU services directly so its command does not depend on merge tags or a GPU Compose file.
 
 - [ ] **Step 3: Validate both merged configurations**
 
 Run:
 
 ```bash
-docker compose config
-docker compose -f compose.yaml -f compose.no-gpu.yaml config
+docker compose -f compose.gpu.yaml config
+docker compose -f compose.no-gpu.yaml config
 ```
 
 Expected: the first contains GPU voice configuration; the second contains no `voice-ui` service and no NVIDIA device reservation.
@@ -173,15 +174,15 @@ Expected: the first contains GPU voice configuration; the second contains no `vo
 
 - [ ] **Step 1: Document prerequisites**
 
-Document Docker Compose, NVIDIA Container Toolkit for the default stack, and the fact that no-GPU mode excludes voice services.
+Document Docker Compose, NVIDIA Container Toolkit for the GPU stack, and the fact that no-GPU mode excludes voice services.
 
 - [ ] **Step 2: Document startup commands**
 
 Add:
 
 ```bash
-docker compose up --build
-docker compose -f compose.yaml -f compose.no-gpu.yaml up --build
+docker compose -f compose.gpu.yaml up --build
+docker compose -f compose.no-gpu.yaml up --build
 docker compose run --rm devcontainer codex
 docker compose run --rm devcontainer pytest -q
 ```
@@ -193,4 +194,3 @@ Explain runtime injection for `OPENAI_API_KEY`/Codex login and `PF_API_KEY`; sta
 - [ ] **Step 4: Run verification**
 
 Run `pytest -q`, both `docker compose ... config` commands, and build the available images. Record any unavailable GPU build limitation without claiming a successful GPU runtime test.
-

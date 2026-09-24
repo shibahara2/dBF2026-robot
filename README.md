@@ -11,15 +11,15 @@ progress in a browser.
 ### Prerequisites
 
 Install Docker Engine (or Docker Desktop) with Docker Compose plugin 2.24.4 or
-newer. The configuration uses service build `additional_contexts` and the
-Compose `!reset` tag. The default stack also starts the GPU-backed `voice-ui`
+newer. The GPU and no-GPU stacks are independent Compose files, so select one
+explicitly. The GPU stack starts the GPU-backed `voice-ui`
 service, so it requires an ARM64/aarch64 Linux host with an NVIDIA GPU, a
 compatible NVIDIA driver, and the
 [NVIDIA Container Toolkit](https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/latest/install-guide.html).
 The voice image and its pinned CUDA PyTorch wheels target `linux/arm64`; x86
-hosts should use the no-GPU override below.
+hosts should use the no-GPU Compose file below.
 
-On a machine without GPU support, or on an x86 host, use the no-GPU override
+On a machine without GPU support, or on an x86 host, use the no-GPU Compose file
 below. It removes `voice-ui`; voice input and spoken status updates are
 unavailable in that mode, while the Flask app and mock robot services remain
 available.
@@ -30,14 +30,14 @@ The default command builds and starts the complete stack, including the
 GPU-backed voice service:
 
 ```bash
-docker compose up --build
+docker compose -f compose.gpu.yaml up --build
 ```
 
 For a host without an NVIDIA GPU, build and start the app, mocks, and
 development container without the voice service:
 
 ```bash
-docker compose -f compose.yaml -f compose.no-gpu.yaml up --build
+docker compose -f compose.no-gpu.yaml up --build
 ```
 
 The kiosk is available at `http://localhost:5000/`. Stop either stack with
@@ -58,17 +58,16 @@ docker compose run --rm devcontainer codex
 docker compose run --rm devcontainer pytest -q
 ```
 
-The default development image is layered on the built `voice-ui` service image
+The GPU development image is layered on the built `voice-ui` service image
 and requests one NVIDIA GPU, so it includes the voice/GPU dependencies needed
-to collect the full test suite. The no-GPU override instead builds the same
+to collect the full test suite. The no-GPU Compose file instead builds the same
 `devcontainer` service from the core development image and clears its GPU
 reservation.
 
-For no-GPU hosts, prepend the same override files to `run` commands, for
-example:
+For no-GPU hosts, use the no-GPU file directly:
 
 ```bash
-docker compose -f compose.yaml -f compose.no-gpu.yaml run --rm devcontainer pytest -q --ignore=tests/test_voice_ui_main.py --ignore=tests/test_voice_ui_vad_segmenter.py --ignore=tests/test_voice_ui_stt_transcriber.py --ignore=tests/test_integration_mocks.py
+docker compose -f compose.no-gpu.yaml run --rm devcontainer pytest -q --ignore=tests/test_voice_ui_main.py --ignore=tests/test_voice_ui_tts.py --ignore=tests/test_voice_ui_vad_segmenter.py --ignore=tests/test_voice_ui_stt_transcriber.py --ignore=tests/test_integration_mocks.py
 ```
 
 The no-GPU command excludes GPU/audio-dependent tests and the local-port
@@ -101,7 +100,7 @@ Set `PF_API_KEY` for the app's AI管制PF requests:
 ```bash
 export OPENAI_API_KEY="<openai-api-key>"
 export PF_API_KEY="<pf-api-key>"
-docker compose up --build
+docker compose -f compose.gpu.yaml up --build
 ```
 
 Never copy secrets into Dockerfiles, image layers, or committed files. Pass
