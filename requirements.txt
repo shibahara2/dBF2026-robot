@@ -16,3 +16,4 @@ torchaudio @ https://download.pytorch.org/whl/cu130/torchaudio-2.10.0%2Bcu130-cp
 
 sounddevice==0.4.7
 numpy==1.26.4
+python-dotenv==1.0.1
