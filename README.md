@@ -10,10 +10,11 @@ progress in a browser.
 
 ### Prerequisites
 
-Install Docker Engine (or Docker Desktop) with the Docker Compose plugin. The
-default stack also starts the GPU-backed `voice-ui` service, so it requires an
-ARM64/aarch64 Linux host with an NVIDIA GPU, a compatible NVIDIA driver, and
-the
+Install Docker Engine (or Docker Desktop) with Docker Compose plugin 2.24.4 or
+newer. The configuration uses service build `additional_contexts` and the
+Compose `!reset` tag. The default stack also starts the GPU-backed `voice-ui`
+service, so it requires an ARM64/aarch64 Linux host with an NVIDIA GPU, a
+compatible NVIDIA driver, and the
 [NVIDIA Container Toolkit](https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/latest/install-guide.html).
 The voice image and its pinned CUDA PyTorch wheels target `linux/arm64`; x86
 hosts should use the no-GPU override below.
@@ -57,6 +58,12 @@ docker compose run --rm devcontainer codex
 docker compose run --rm devcontainer pytest -q
 ```
 
+The default development image is layered on the built `voice-ui` service image
+and requests one NVIDIA GPU, so it includes the voice/GPU dependencies needed
+to collect the full test suite. The no-GPU override instead builds the same
+`devcontainer` service from the core development image and clears its GPU
+reservation.
+
 For no-GPU hosts, prepend the same override files to `run` commands, for
 example `docker compose -f compose.yaml -f compose.no-gpu.yaml run --rm
 devcontainer pytest -q`.
@@ -64,10 +71,25 @@ devcontainer pytest -q`.
 ### Runtime credentials
 
 Inject credentials at runtime through your shell environment or a local
-`.env` file (which is ignored by Git). `OPENAI_API_KEY` is passed to the
-development container for Codex API authentication; alternatively, run
-`docker compose run --rm devcontainer codex login` to use Codex login. Set
-`PF_API_KEY` for the app's AI管制PF requests:
+`.env` file (which is ignored by Git). `OPENAI_API_KEY` and
+`CODEX_ACCESS_TOKEN` are passed to the development container. After opening a
+development-container shell, authenticate Codex with exactly one of:
+
+```bash
+printenv OPENAI_API_KEY | codex login --with-api-key
+printenv CODEX_ACCESS_TOKEN | codex login --with-access-token
+codex login --device-auth
+```
+
+The `codex-home` named volume persists Codex authentication between disposable
+`docker compose run --rm` containers. To remove that persisted authentication
+and all other Compose volumes, run:
+
+```bash
+docker compose down -v
+```
+
+Set `PF_API_KEY` for the app's AI管制PF requests:
 
 ```bash
 export OPENAI_API_KEY="<openai-api-key>"
@@ -78,6 +100,16 @@ docker compose up --build
 Never copy secrets into Dockerfiles, image layers, or committed files. Pass
 them only at runtime as environment variables or through an uncommitted
 `.env` file.
+
+The container's Codex configuration uses full-access mode. Codex can therefore
+read the mounted repository, including a local `.env` file, and can modify any
+repository file accessible through `/workspace`. Keep secrets out of the
+repository mount when Codex does not need them.
+
+Known limitation: the Dockerfiles currently install the mutable latest
+`@openai/codex` npm release because this repository and the available local npm
+metadata do not provide a concrete version to pin. Image rebuilds can therefore
+pick up a newer Codex CLI release.
 
 ## Install
 

@@ -1,2 +1,15 @@
 services:
   voice-ui: !reset null
+
+  devcontainer:
+    build:
+      context: .
+      dockerfile: docker/devcontainer.Dockerfile
+      args:
+        CORE_IMAGE: core
+        VOICE_IMAGE: !reset null
+      additional_contexts: !reset {}
+    deploy:
+      resources:
+        reservations:
+          devices: !reset []

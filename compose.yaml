@@ -82,11 +82,11 @@ services:
   devcontainer:
     build:
       context: .
-      dockerfile: docker/devcontainer.Dockerfile
+      dockerfile: docker/devcontainer-gpu.Dockerfile
       args:
-        CORE_IMAGE: core
+        VOICE_IMAGE: voice-ui
       additional_contexts:
-        core: service:app
+        voice-ui: service:voice-ui
     environment:
       OPENAI_API_KEY: ${OPENAI_API_KEY:-}
       CODEX_ACCESS_TOKEN: ${CODEX_ACCESS_TOKEN:-}
@@ -100,6 +100,13 @@ services:
     depends_on:
       app:
         condition: service_healthy
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
 
 volumes:
   codex-home:
