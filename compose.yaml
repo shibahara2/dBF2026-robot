@@ -1,0 +1,105 @@
+x-core-build: &core-build
+  context: .
+  dockerfile: docker/core.Dockerfile
+
+services:
+  mocks:
+    image: dbf2026-robot-core:latest
+    build: *core-build
+    command: ["python", "run_mocks.py"]
+    ports:
+      - "5001:5001"
+      - "5002:5002"
+    healthcheck:
+      test:
+        - CMD
+        - python
+        - -c
+        - >-
+          import urllib.request;
+          urllib.request.urlopen('http://localhost:5001/v1/commands/load-drink/status', timeout=2);
+          request = urllib.request.Request('http://localhost:5002/api/v1/guide-robot/status', headers={'X-API-Key': 'healthcheck'});
+          urllib.request.urlopen(request, timeout=2)
+      interval: 5s
+      timeout: 3s
+      retries: 10
+      start_period: 5s
+
+  app:
+    image: dbf2026-robot-core:latest
+    build: *core-build
+    environment:
+      R2_BASE_URL: http://mocks:5001
+      PF_BASE_URL: http://mocks:5002
+      PF_API_KEY: ${PF_API_KEY:-compose-local}
+    command: ["python", "run.py"]
+    ports:
+      - "5000:5000"
+    depends_on:
+      mocks:
+        condition: service_healthy
+    healthcheck:
+      test:
+        - CMD
+        - python
+        - -c
+        - >-
+          import urllib.request;
+          urllib.request.urlopen('http://localhost:5000/', timeout=2)
+      interval: 5s
+      timeout: 3s
+      retries: 10
+      start_period: 5s
+
+  voice-ui:
+    build:
+      context: .
+      dockerfile: docker/voice-gpu.Dockerfile
+    environment:
+      FLASK_BASE_URL: http://app:5000
+      VOICEVOX_URL: ${VOICEVOX_URL:-http://host.docker.internal:50021}
+      WHISPER_MODEL: ${WHISPER_MODEL:-large-v3}
+      WHISPER_DEVICE: ${WHISPER_DEVICE:-cuda}
+      WHISPER_FP16: ${WHISPER_FP16:-1}
+      STT_NO_SPEECH_PROB_MAX: ${STT_NO_SPEECH_PROB_MAX:-0.6}
+      STT_AVG_LOGPROB_MIN: ${STT_AVG_LOGPROB_MIN:--1.0}
+      VAD_TRAILING_SILENCE_MS: ${VAD_TRAILING_SILENCE_MS:-500}
+    depends_on:
+      app:
+        condition: service_healthy
+    devices:
+      - /dev/snd:/dev/snd
+    extra_hosts:
+      - host.docker.internal:host-gateway
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+
+  devcontainer:
+    build:
+      context: .
+      dockerfile: docker/devcontainer.Dockerfile
+      args:
+        CORE_IMAGE: core
+      additional_contexts:
+        core: service:app
+    environment:
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      CODEX_ACCESS_TOKEN: ${CODEX_ACCESS_TOKEN:-}
+    volumes:
+      - .:/workspace
+      - codex-home:/opt/codex-home
+      - ./docker/codex-config.toml:/opt/codex-home/config.toml:ro
+    command: ["sleep", "infinity"]
+    stdin_open: true
+    tty: true
+    depends_on:
+      app:
+        condition: service_healthy
+
+volumes:
+  codex-home:
