@@ -12,12 +12,16 @@ progress in a browser.
 
 Install Docker Engine (or Docker Desktop) with the Docker Compose plugin. The
 default stack also starts the GPU-backed `voice-ui` service, so it requires an
-NVIDIA GPU, a compatible NVIDIA driver, and the
+ARM64/aarch64 Linux host with an NVIDIA GPU, a compatible NVIDIA driver, and
+the
 [NVIDIA Container Toolkit](https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/latest/install-guide.html).
+The voice image and its pinned CUDA PyTorch wheels target `linux/arm64`; x86
+hosts should use the no-GPU override below.
 
-On a machine without GPU support, use the no-GPU override below. It removes
-`voice-ui`; voice input and spoken status updates are unavailable in that
-mode, while the Flask app and mock robot services remain available.
+On a machine without GPU support, or on an x86 host, use the no-GPU override
+below. It removes `voice-ui`; voice input and spoken status updates are
+unavailable in that mode, while the Flask app and mock robot services remain
+available.
 
 ### Start the stack
 
