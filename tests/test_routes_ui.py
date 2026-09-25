@@ -9,14 +9,18 @@ def make_client():
     return app.test_client()
 
 
-def test_index_page_renders_checkin_form():
+def test_index_page_renders_checkin_flow_stages():
     client = make_client()
 
     resp = client.get("/")
 
     assert resp.status_code == 200
-    assert b'id="checkin-form"' in resp.data
-    assert b'id="guest-name-input"' in resp.data
+    assert b'id="start-button"' in resp.data
+    assert b'id="search-form"' in resp.data
+    assert b'id="search-input"' in resp.data
+    assert b'id="candidate-list"' in resp.data
+    assert b'id="reservation-detail"' in resp.data
+    assert b'id="confirm-button"' in resp.data
 
 
 def test_index_page_has_progress_and_error_sections():
