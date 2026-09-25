@@ -1,0 +1,74 @@
+{
+  "reservations": [
+    {
+      "reservation_id": "RSV-0001",
+      "reservation_number": "DBF-1001",
+      "guest_name": "田中太郎",
+      "guest_name_kana": "タナカタロウ",
+      "phone": "090-1234-5678",
+      "room_number": "1203",
+      "plan": "スタンダードツイン / 朝食付き",
+      "check_in_date": "2026-09-25",
+      "check_out_date": "2026-09-27",
+      "nights": 2,
+      "guests": 2,
+      "status": "reserved"
+    },
+    {
+      "reservation_id": "RSV-0002",
+      "reservation_number": "DBF-1002",
+      "guest_name": "田中太郎",
+      "guest_name_kana": "タナカタロウ",
+      "phone": "080-2222-3333",
+      "room_number": "0805",
+      "plan": "デラックスダブル / 素泊まり",
+      "check_in_date": "2026-09-25",
+      "check_out_date": "2026-09-26",
+      "nights": 1,
+      "guests": 1,
+      "status": "reserved"
+    },
+    {
+      "reservation_id": "RSV-0003",
+      "reservation_number": "DBF-1003",
+      "guest_name": "鈴木翔太",
+      "guest_name_kana": "スズキショウタ",
+      "phone": "070-4444-5555",
+      "room_number": "1510",
+      "plan": "エグゼクティブスイート / 朝食付き",
+      "check_in_date": "2026-09-25",
+      "check_out_date": "2026-09-28",
+      "nights": 3,
+      "guests": 2,
+      "status": "reserved"
+    },
+    {
+      "reservation_id": "RSV-0004",
+      "reservation_number": "DBF-1004",
+      "guest_name": "佐藤花子",
+      "guest_name_kana": "サトウハナコ",
+      "phone": "090-6666-7777",
+      "room_number": "0902",
+      "plan": "スタンダードシングル / 朝食付き",
+      "check_in_date": "2026-09-25",
+      "check_out_date": "2026-09-26",
+      "nights": 1,
+      "guests": 1,
+      "status": "reserved"
+    },
+    {
+      "reservation_id": "RSV-0005",
+      "reservation_number": "DBF-1005",
+      "guest_name": "山田健一",
+      "guest_name_kana": "ヤマダケンイチ",
+      "phone": "080-8888-9999",
+      "room_number": "1104",
+      "plan": "スタンダードツイン / 素泊まり",
+      "check_in_date": "2026-09-25",
+      "check_out_date": "2026-09-27",
+      "nights": 2,
+      "guests": 2,
+      "status": "reserved"
+    }
+  ]
+}
