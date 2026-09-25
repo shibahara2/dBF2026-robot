@@ -1,6 +1,6 @@
 from flask import Flask
 
-from app.reservations import STATUS_CHECKED_IN, ReservationStore
+from app.reservations import STATUS_RESERVED, ReservationStore
 from app.routes.checkin import checkin_bp
 
 RECORDS = [
@@ -123,7 +123,6 @@ def test_checkin_by_reservation_id():
 
     assert resp.status_code == 200
     assert runner.checkin_calls == ["田中太郎"]
-    assert store.get("RSV-0002")["status"] == STATUS_CHECKED_IN
     assert resp.get_json()["reservation"]["room_number"] == "0805"
 
 
@@ -137,27 +136,36 @@ def test_checkin_with_unknown_reservation_id():
     assert runner.checkin_calls == []
 
 
-def test_checkin_rejected_when_already_checked_in():
-    runner = FakeRunner()
+def test_checkin_leaves_reservation_status_untouched():
+    runner = FakeRunner(checkin_result=True)
     store = ReservationStore(RECORDS)
-    store.mark_checked_in("RSV-0001")
     client = make_client(runner, store)
 
     resp = client.post("/api/checkin", json={"reservation_id": "RSV-0001"})
 
-    assert resp.status_code == 409
-    assert runner.checkin_calls == []
+    assert resp.get_json()["reservation"]["status"] == STATUS_RESERVED
+    assert store.get("RSV-0001")["status"] == STATUS_RESERVED
 
 
-def test_reservation_stays_reserved_when_cycle_in_progress():
+def test_same_reservation_can_check_in_again():
+    runner = FakeRunner(checkin_result=True)
+    store = ReservationStore(RECORDS)
+    client = make_client(runner, store)
+
+    client.post("/api/checkin", json={"reservation_id": "RSV-0001"})
+    second = client.post("/api/checkin", json={"reservation_id": "RSV-0001"})
+
+    assert second.status_code == 200
+    assert runner.checkin_calls == ["田中太郎", "田中太郎"]
+
+
+def test_checkin_by_reservation_rejected_when_cycle_in_progress():
     runner = FakeRunner(checkin_result=False)
-    store = ReservationStore(RECORDS)
-    client = make_client(runner, store)
+    client = make_client(runner)
 
     resp = client.post("/api/checkin", json={"reservation_id": "RSV-0001"})
 
     assert resp.status_code == 409
-    assert store.get("RSV-0001")["status"] != STATUS_CHECKED_IN
 
 
 def test_checkin_accepted():

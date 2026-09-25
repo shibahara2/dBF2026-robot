@@ -1,7 +1,5 @@
 from flask import Blueprint, current_app, jsonify, request
 
-from ..reservations import STATUS_CHECKED_IN
-
 checkin_bp = Blueprint("checkin", __name__)
 
 _PUBLIC_FIELDS = (
@@ -71,18 +69,15 @@ def _checkin_by_reservation(runner, reservation_id):
     reservation = store.get(reservation_id)
     if reservation is None:
         return jsonify({"message": "reservation not found"}), 404
-    if reservation["status"] == STATUS_CHECKED_IN:
-        return jsonify({"message": "already checked in"}), 409
 
     if not runner.request_checkin(reservation["guest_name"]):
         return jsonify({"message": "a cycle is already in progress"}), 409
 
-    store.mark_checked_in(reservation_id)
     return (
         jsonify(
             {
                 "message": "checkin accepted",
-                "reservation": _public_reservation(store.get(reservation_id)),
+                "reservation": _public_reservation(reservation),
             }
         ),
         200,

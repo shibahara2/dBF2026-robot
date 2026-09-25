@@ -99,25 +99,20 @@ def test_search_result_is_a_copy(store):
     assert store.get("RSV-0001")["guest_name"] == "田中太郎"
 
 
-def test_mark_checked_in(store):
-    assert store.mark_checked_in("RSV-0001") is True
-    assert store.get("RSV-0001")["status"] == STATUS_CHECKED_IN
+def test_seeded_status_is_preserved():
+    store = ReservationStore([{"reservation_id": "A", "status": STATUS_CHECKED_IN}])
+
+    assert store.get("A")["status"] == STATUS_CHECKED_IN
 
 
-def test_mark_checked_in_twice_is_rejected(store):
-    store.mark_checked_in("RSV-0001")
-
-    assert store.mark_checked_in("RSV-0001") is False
-
-
-def test_mark_checked_in_unknown_id(store):
-    assert store.mark_checked_in("RSV-9999") is False
+def test_store_exposes_no_status_mutators(store):
+    assert not hasattr(store, "mark_checked_in")
+    assert not hasattr(store, "reset_status")
 
 
-def test_reset_status(store):
-    store.mark_checked_in("RSV-0001")
+def test_get_returns_a_copy(store):
+    store.get("RSV-0001")["status"] = STATUS_CHECKED_IN
 
-    assert store.reset_status("RSV-0001") is True
     assert store.get("RSV-0001")["status"] == STATUS_RESERVED
 
 

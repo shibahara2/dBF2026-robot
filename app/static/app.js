@@ -142,7 +142,7 @@ function searchReservations(query) {
 
 const CONFIRM_ERRORS = {
   404: "ご予約が見つかりませんでした。もう一度検索してください。",
-  409: "現在ほかの方が対応中か、すでにチェックイン済みです。",
+  409: "ただいま他の方が対応中です。少々お待ちください。",
 };
 
 function confirmCheckin() {

@@ -32,10 +32,10 @@ def _normalize_phone(value):
 
 
 class ReservationStore:
-    """In-memory reservation directory seeded from a JSON file.
+    """Read-only reservation directory seeded from a JSON file.
 
-    Check-in status is kept in memory only, so restarting the app puts every
-    reservation back to ``reserved``.
+    Checking in never writes back here, so ``status`` always reflects the seed
+    data and the same reservation can be checked in repeatedly.
     """
 
     def __init__(self, reservations):
@@ -103,22 +103,3 @@ class ReservationStore:
                 return True
         return False
 
-    def mark_checked_in(self, reservation_id):
-        """Flip a reservation to checked-in. False if unknown or already done."""
-        with self._lock:
-            for record in self._reservations:
-                if record["reservation_id"] != reservation_id:
-                    continue
-                if record["status"] == STATUS_CHECKED_IN:
-                    return False
-                record["status"] = STATUS_CHECKED_IN
-                return True
-        return False
-
-    def reset_status(self, reservation_id):
-        with self._lock:
-            for record in self._reservations:
-                if record["reservation_id"] == reservation_id:
-                    record["status"] = STATUS_RESERVED
-                    return True
-        return False

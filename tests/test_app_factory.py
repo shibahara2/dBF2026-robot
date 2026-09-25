@@ -90,18 +90,19 @@ def test_search_then_checkin_against_the_seeded_reservations():
         "/api/checkin", json={"reservation_id": reservation["reservation_id"]}
     )
     assert resp.status_code == 200
-    assert resp.get_json()["reservation"]["status"] == "checked_in"
+    assert resp.get_json()["reservation"]["status"] == "reserved"
 
     assert wait_until(
         lambda: state_machine.snapshot()["step"] == "awaiting_checkin"
         and state_machine.snapshot()["phase"] == "waiting"
     )
 
-    # The same reservation cannot be checked in twice.
+    # Check-in never writes back to the store, so the same reservation can run
+    # the demo again once the cycle is done.
     again = client.post(
         "/api/checkin", json={"reservation_id": reservation["reservation_id"]}
     )
-    assert again.status_code == 409
+    assert again.status_code == 200
 
 
 def test_index_route_served_through_app_factory():
