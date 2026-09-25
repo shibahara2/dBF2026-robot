@@ -1,2 +1,3 @@
+# Default GPU environment: use requirements-no-gpu.txt on hosts without GPU support.
 -r requirements-core.txt
 -r requirements-voice-gpu.txt
