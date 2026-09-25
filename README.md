@@ -6,117 +6,6 @@ R2/Themis (drink-serving robot) systems, exposing progress over SSE. A
 self-service venue kiosk UI (`GET /`) lets a guest check in and watch that
 progress in a browser.
 
-## Docker / Compose development environment
-
-### Prerequisites
-
-Install Docker Engine (or Docker Desktop) with Docker Compose plugin 2.24.4 or
-newer. The GPU and no-GPU stacks are independent Compose files, so select one
-explicitly. The GPU stack starts the GPU-backed `voice-ui`
-service, so it requires an ARM64/aarch64 Linux host with an NVIDIA GPU, a
-compatible NVIDIA driver, and the
-[NVIDIA Container Toolkit](https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/latest/install-guide.html).
-The voice image and its pinned CUDA PyTorch wheels target `linux/arm64`; x86
-hosts should use the no-GPU Compose file below.
-
-On a machine without GPU support, or on an x86 host, use the no-GPU Compose file
-below. It removes `voice-ui`; voice input and spoken status updates are
-unavailable in that mode, while the Flask app and mock robot services remain
-available.
-
-### Start the stack
-
-The default command builds and starts the complete stack, including the
-GPU-backed voice service:
-
-```bash
-docker compose -f compose.gpu.yaml up --build
-```
-
-For a host without an NVIDIA GPU, build and start the app, mocks, and
-development container without the voice service:
-
-```bash
-docker compose -f compose.no-gpu.yaml up --build
-```
-
-The kiosk is available at `http://localhost:5000/`. Stop either stack with
-`Ctrl-C` (or run the same Compose command with `down`).
-
-### Development container
-
-Start an interactive shell in the repository-mounted development container:
-
-```bash
-docker compose run --rm devcontainer bash
-```
-
-Run Codex or the Python test suite without first opening a shell:
-
-```bash
-docker compose run --rm devcontainer codex
-docker compose run --rm devcontainer pytest -q
-```
-
-The GPU development image is layered on the built `voice-ui` service image
-and requests one NVIDIA GPU, so it includes the voice/GPU dependencies needed
-to collect the full test suite. The no-GPU Compose file instead builds the same
-`devcontainer` service from the core development image and clears its GPU
-reservation.
-
-For no-GPU hosts, use the no-GPU file directly:
-
-```bash
-docker compose -f compose.no-gpu.yaml run --rm devcontainer pytest -q --ignore=tests/test_voice_ui_main.py --ignore=tests/test_voice_ui_tts.py --ignore=tests/test_voice_ui_vad_segmenter.py --ignore=tests/test_voice_ui_stt_transcriber.py --ignore=tests/test_integration_mocks.py
-```
-
-The no-GPU command excludes GPU/audio-dependent tests and the local-port
-integration test; the complete voice test suite requires the default GPU
-stack.
-
-### Runtime credentials
-
-Inject credentials at runtime through your shell environment or a local
-`.env` file (which is ignored by Git). `OPENAI_API_KEY` and
-`CODEX_ACCESS_TOKEN` are passed to the development container. After opening a
-development-container shell, authenticate Codex with exactly one of:
-
-```bash
-printenv OPENAI_API_KEY | codex login --with-api-key
-printenv CODEX_ACCESS_TOKEN | codex login --with-access-token
-codex login --device-auth
-```
-
-The `codex-home` named volume persists Codex authentication between disposable
-`docker compose run --rm` containers. To remove that persisted authentication
-and all other Compose volumes, run:
-
-```bash
-docker compose down -v
-```
-
-Set `PF_API_KEY` for the app's AI管制PF requests:
-
-```bash
-export OPENAI_API_KEY="<openai-api-key>"
-export PF_API_KEY="<pf-api-key>"
-docker compose -f compose.gpu.yaml up --build
-```
-
-Never copy secrets into Dockerfiles, image layers, or committed files. Pass
-them only at runtime as environment variables or through an uncommitted
-`.env` file.
-
-The container's Codex configuration uses full-access mode. Codex can therefore
-read the mounted repository, including a local `.env` file, and can modify any
-repository file accessible through `/workspace`. Keep secrets out of the
-repository mount when Codex does not need them.
-
-Known limitation: the Dockerfiles currently install the mutable latest
-`@openai/codex` npm release because this repository and the available local npm
-metadata do not provide a concrete version to pin. Image rebuilds can therefore
-pick up a newer Codex CLI release.
-
 ## Install
 
 Using [uv](https://docs.astral.sh/uv/):
@@ -132,6 +21,18 @@ Or with plain pip:
 ```
 pip install -r requirements.txt
 ```
+
+## Codex
+
+Run Codex from the host repository with approvals disabled while retaining the
+workspace-write sandbox:
+
+```bash
+codex -c approval_policy=never -c sandbox_mode=workspace-write
+```
+
+Authenticate once with `codex login`. The workspace-write sandbox limits writes
+to the current project directory; avoid `danger-full-access` on the host.
 
 ## Run (mock mode)
 
