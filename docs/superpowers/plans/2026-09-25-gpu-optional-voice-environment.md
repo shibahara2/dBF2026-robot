@@ -168,11 +168,11 @@ git commit -m "docs: document GPU and no-GPU workflows"
 - Consumes: dependency profiles and README workflows from Tasks 1–2.
 - Produces: verified evidence that core startup works without voice dependencies and that the GPU profile remains the full path.
 
-- [ ] **Step 1: Run the core test suite using the no-GPU command**
+- [x] **Step 1: Run the core test suite using the no-GPU command**
 
 Run the documented no-GPU pytest command. Record the pass count and any environment-specific skips or failures.
 
-- [ ] **Step 2: Run the mock/app smoke test**
+- [x] **Step 2: Run the mock/app smoke test**
 
 Start the mock servers and Flask app using the no-GPU dependency profile, then verify:
 
@@ -183,11 +183,11 @@ curl -fsS http://localhost:5000/api/events --max-time 2
 
 Expected: the kiosk page responds successfully and the SSE endpoint opens without importing or starting `voice_ui`.
 
-- [ ] **Step 3: Verify the GPU voice entry point is documented, not auto-started**
+- [x] **Step 3: Verify the GPU voice entry point is documented, not auto-started**
 
 Confirm `run.py` and `run_mocks.py` do not import `voice_ui`, and confirm the README requires the explicit `python -m voice_ui.main` command only for the GPU workflow.
 
-- [ ] **Step 4: Run the full GPU test command where GPU dependencies are installed**
+- [x] **Step 4: Run the full GPU test command where GPU dependencies are installed**
 
 Run:
 
@@ -205,3 +205,10 @@ Only if Task 3 finds a concrete mismatch, update the affected documentation and 
 git add README.md
 git commit -m "docs: correct environment verification instructions"
 ```
+
+#### Verification record (2026-09-25)
+
+- No-GPU core test command: **128 passed**.
+- Mock server and Flask app smoke test: **completed**; kiosk page and SSE endpoint confirmed.
+- `run.py` / `run_mocks.py` do not auto-start `voice_ui`; GPU voice UI remains an explicit separate process.
+- Full GPU test suite: **environment-dependent and not run in this no-GPU verification session**. Run `pytest -q` in the GPU environment before production cutover.
