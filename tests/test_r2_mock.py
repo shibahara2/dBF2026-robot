@@ -19,7 +19,7 @@ def test_initial_status_is_completed_with_no_request_id(monkeypatch):
 
 
 def test_load_drink_accepts_and_transitions_through_loading_returning_completed(monkeypatch):
-    client = make_client(monkeypatch, loading_seconds="0.05", returning_seconds="0.05")
+    client = make_client(monkeypatch, loading_seconds="0.01", returning_seconds="0.05")
 
     post_resp = client.post(
         "/v1/commands/load-drink",
@@ -30,7 +30,11 @@ def test_load_drink_accepts_and_transitions_through_loading_returning_completed(
     status_resp = client.get("/v1/commands/load-drink/status")
     assert status_resp.get_json()["status"] == "loading"
 
-    time.sleep(0.15)
+    time.sleep(0.1)
+    status_resp = client.get("/v1/commands/load-drink/status")
+    assert status_resp.get_json()["status"] == "loading"
+
+    time.sleep(1.0)
     status_resp = client.get("/v1/commands/load-drink/status")
     assert status_resp.get_json()["status"] in ("returning", "completed")
 

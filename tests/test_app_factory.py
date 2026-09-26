@@ -56,7 +56,8 @@ def test_checkin_then_events_reflect_state_machine_progress():
     # merely not crashing (see finding #2 of the final review).
     assert wait_until(
         lambda: state_machine.snapshot()["phase"] == "waiting"
-        and state_machine.snapshot()["step"] == "awaiting_checkin"
+        and state_machine.snapshot()["step"] == "awaiting_checkin",
+        timeout=8.0,
     )
     final = state_machine.snapshot()
     assert final["error_message"] is None

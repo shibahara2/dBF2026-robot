@@ -1,11 +1,63 @@
 import responses
 import requests
+from unittest.mock import patch
 
 from app.clients.pf_client import PFClient
 
 
 def make_client():
     return PFClient(base_url="http://pf.test", timeout=1.0)
+
+
+@responses.activate
+def test_pf_requests_include_api_key_header():
+    responses.add(
+        responses.GET,
+        "http://pf.test/api/v1/guide-robot/status",
+        json={"status": "Ready"},
+        status=200,
+    )
+    responses.add(
+        responses.POST,
+        "http://pf.test/api/v1/drink/placed",
+        json={"accepted": True},
+        status=200,
+    )
+
+    client = PFClient(base_url="http://pf.test", timeout=1.0, api_key="test-key")
+
+    assert client.get_guide_robot_status() == "ready"
+    assert client.post_drink_placed() is True
+    assert responses.calls[0].request.headers["X-API-Key"] == "test-key"
+    assert responses.calls[1].request.headers["X-API-Key"] == "test-key"
+    assert responses.calls[0].request.headers["Content-Type"] == "application/json"
+    assert responses.calls[1].request.headers["Content-Type"] == "application/json"
+
+
+@responses.activate
+def test_pf_requests_use_configured_proxy():
+    responses.add(
+        responses.GET,
+        "http://pf.test/api/v1/guide-robot/status",
+        json={"status": "Ready"},
+        status=200,
+    )
+
+    with patch("app.clients.pf_client.requests.get") as get:
+        get.return_value.status_code = 200
+        get.return_value.json.return_value = {"status": "Ready"}
+        client = PFClient(
+            base_url="http://pf.test",
+            timeout=1.0,
+            proxy_url="http://115.69.226.50:8080",
+        )
+
+        assert client.get_guide_robot_status() == "ready"
+
+    assert get.call_args.kwargs["proxies"] == {
+        "http": "http://115.69.226.50:8080",
+        "https": "http://115.69.226.50:8080",
+    }
 
 
 @responses.activate
@@ -94,6 +146,8 @@ def test_post_drink_placed_accepted():
         status=200,
     )
     assert make_client().post_drink_placed() is True
+    assert responses.calls[0].request.body == b'{"result": "success"}'
+    assert responses.calls[0].request.headers["Content-Type"] == "application/json"
 
 
 @responses.activate

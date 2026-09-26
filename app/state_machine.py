@@ -34,12 +34,14 @@ class StateMachine:
         poll_interval=2.0,
         request_id_factory=default_request_id,
         now=default_now,
+        sequence_wait=1.0,
     ):
         self._r2 = r2_client
         self._pf = pf_client
         self._on_change = on_change
         self._sleep = sleep
         self._poll_interval = poll_interval
+        self._sequence_wait = sequence_wait
         self._request_id_factory = request_id_factory
         self._now = now
 
@@ -121,22 +123,30 @@ class StateMachine:
         self._fail(message)
 
     def run_started_cycle(self):
+        self._wait_before_step()
         if not self._poll_pf_ready():
             return
         self._update(step=STEP_POLLING_R2_READY)
+        self._wait_before_step()
         if not self._poll_r2_ready():
             return
         request_id = self._request_id_factory()
         self._update(step=STEP_SENDING_LOAD_DRINK, request_id=request_id)
+        self._wait_before_step()
         if not self._send_load_drink(request_id):
             return
         self._update(phase=PHASE_ACTIVE, step=STEP_POLLING_R2_ACTIVE)
+        self._wait_before_step()
         if not self._poll_r2_active(request_id):
             return
         self._update(step=STEP_NOTIFYING_PF_PLACED)
+        self._wait_before_step()
         if not self._notify_pf_placed():
             return
         self._to_waiting_step0()
+
+    def _wait_before_step(self):
+        self._sleep(self._sequence_wait)
 
     def _poll_pf_ready(self):
         while True:

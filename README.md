@@ -8,11 +8,25 @@ progress in a browser.
 
 ## Install
 
+GPU環境をデフォルトとしています。音声IFを利用するGPU環境では
+`requirements.txt` を使い、GPUがない環境では `requirements-no-gpu.txt` を
+使ってください。no-GPU構成では音声IFをインストール・起動しません。
+
 Using [uv](https://docs.astral.sh/uv/):
+
+GPUあり（デフォルト）:
 
 ```
 uv venv .venv
 uv pip install -r requirements.txt --python .venv/bin/python
+source .venv/bin/activate
+```
+
+GPUなし:
+
+```
+uv venv .venv
+uv pip install -r requirements-no-gpu.txt --python .venv/bin/python
 source .venv/bin/activate
 ```
 
@@ -21,6 +35,21 @@ Or with plain pip:
 ```
 pip install -r requirements.txt
 ```
+
+GPUなしでplain pipを使う場合は `pip install -r requirements-no-gpu.txt` を
+実行してください。
+
+## Codex
+
+Run Codex from the host repository with approvals disabled while retaining the
+workspace-write sandbox:
+
+```bash
+codex -c approval_policy=never -c sandbox_mode=workspace-write
+```
+
+Authenticate once with `codex login`. The workspace-write sandbox limits writes
+to the current project directory; avoid `danger-full-access` on the host.
 
 ## Run (mock mode)
 
@@ -41,10 +70,14 @@ For a full manual walkthrough (check-in, watching SSE progress, forcing error
 paths, resetting), see
 `docs/superpowers/plans/manual-e2e-check.md`.
 
-## 音声IF (voice_ui) の起動 (任意)
+GPU環境では、上記のモックとFlaskアプリに加えて、音声IFを別プロセスで
+明示的に起動できます。GPUなし環境ではこのコマンドを実行しないでください。
+
+## 音声IF (voice_ui) の起動 (GPU環境のみ)
 
 マイク・スピーカーが接続された端末で、名前の音声チェックインと進行状況の
-読み上げを行いたい場合は、上記のFlaskアプリ起動に加えて以下も起動する:
+読み上げを行う場合は、上記のFlaskアプリ起動に加えて以下を別ターミナルで
+起動します:
 
 ```
 python -m voice_ui.main
@@ -54,25 +87,66 @@ VOICEVOXエンジン（`http://127.0.0.1:50021`）が別途起動している必
 設定可能な環境変数は`voice_ui/config.py`を参照。詳細は
 `docs/superpowers/specs/2026-09-13-voice-ui-design.md`を参照。
 
+## Test
+
+GPU環境（`requirements.txt`）では、コア機能と音声IFを含む全テストを実行します:
+
+```
+pytest -q
+```
+
+GPUなし環境（`requirements-no-gpu.txt`）では、GPU・音声ハードウェア依存の
+テストを除外してコア機能を実行します:
+
+```
+pytest -q \
+  --ignore=tests/test_voice_ui_main.py \
+  --ignore=tests/test_voice_ui_tts.py \
+  --ignore=tests/test_voice_ui_vad_segmenter.py \
+  --ignore=tests/test_voice_ui_stt_transcriber.py \
+  --ignore=tests/test_integration_mocks.py
+```
+
+これらの除外はコア機能の縮退ではなく、GPU・音声デバイス・音声専用依存を
+必要とするテストを実行環境に合わせて除外するためのものです。
+
 ## Environment variables
 
 | Variable | Default | Purpose |
 |---|---|---|
 | `R2_BASE_URL` | `http://localhost:5001` | Base URL of the R2/Themis drink-serving robot system |
 | `PF_BASE_URL` | `http://localhost:5002` | Base URL of the AI管制PF (guide robot control plane) |
+| `PF_API_KEY` | unset | `X-API-Key` sent to the AI管制PF; the local mock accepts any non-empty value |
+| `PF_PROXY_URL` | unset | Optional proxy URL used for PF requests |
 | `POLL_INTERVAL_SECONDS` | `2` | Seconds between status polls while waiting on R2/PF |
 | `HTTP_TIMEOUT_SECONDS` | `5` | Per-request HTTP timeout for calls to R2/PF |
 | `DRINK_TYPE` | `water` | `drink_type` sent in R2's load-drink command |
 | `TARGET_ROBOT_ID` | `temi` | `target_robot_id` sent in R2's load-drink command |
-| `R2_MOCK_LOADING_SECONDS` | `3` | (mock only) seconds the R2 mock spends in `loading` |
 | `R2_MOCK_RETURNING_SECONDS` | `3` | (mock only) seconds the R2 mock spends in `returning` |
 | `R2_MOCK_FORCE_FAILURE` | unset | (mock only) `422`, `500`, or `failed` to force that R2 mock response |
 | `PF_MOCK_INITIALIZING_SECONDS` | `0` | (mock only) seconds the PF mock reports `Initializing` before `Ready` |
 | `PF_MOCK_ACCEPTED` | `true` | (mock only) set to `false` to make the PF mock reject `drink/placed` |
 | `PF_MOCK_FORCE_FAILURE` | unset | (mock only) `422` or `500` to force that PF mock response from `guide-robot/status` |
 
+The local PF mock requires a non-empty `X-API-Key`, but does not validate its
+value.
+
 ## Switching to the real systems
 
 Cutting over from the mocks to the real AI管制PF/R2/Themis systems requires
-no code changes — just point `R2_BASE_URL` and `PF_BASE_URL` at their real
-URLs.
+no code changes — point `R2_BASE_URL` and `PF_BASE_URL` at their real URLs and
+set the PF API key in the runtime environment:
+
+```
+export PF_BASE_URL="https://reception.robility-system-stg.com"
+export PF_API_KEY="<the-provided-api-key>"
+python run.py
+```
+
+Alternatively, copy `.env.example` to `.env`, fill in `PF_API_KEY`, and run
+`python run.py`. The `.env` file is ignored by Git.
+
+If the host network requires an explicit HTTPS proxy, also set
+`PF_PROXY_URL` to the proxy URL including its port. Leave it empty when no
+explicit proxy is required. Do not put the API key in source code or commit
+it to the repository.

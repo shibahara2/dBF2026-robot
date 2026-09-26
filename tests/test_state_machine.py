@@ -65,6 +65,32 @@ def test_try_start_from_awaiting_checkin_succeeds_and_transitions():
     assert changes[-1] == snap
 
 
+def test_state_machine_preserves_positional_constructor_arguments():
+    changes = []
+    sleeps = []
+    r2 = FakeR2Client(
+        [
+            {"outcome": "completed", "request_id": "none"},
+            {"outcome": "completed", "request_id": "RID"},
+        ]
+    )
+    pf = FakePFClient(["ready"])
+    sm = StateMachine(
+        r2,
+        pf,
+        changes.append,
+        sleeps.append,
+        2.0,
+        lambda: "RID",
+        lambda: "NOW",
+    )
+
+    sm.try_start("Tanaka")
+    sm.run_started_cycle()
+
+    assert r2.load_drink_calls == ["RID"]
+
+
 def test_try_start_fails_when_not_awaiting_checkin():
     sm = make_state_machine(
         FakeR2Client([{"outcome": "completed", "request_id": "none"}]), FakePFClient(["ready"]), [], []
@@ -99,7 +125,7 @@ def test_full_cycle_returns_to_waiting_awaiting_checkin():
     assert final["error_message"] is None
     assert r2.load_drink_calls == ["RID"]
     assert pf.placed_calls == 1
-    assert sleeps == [2.0, 2.0, 2.0]
+    assert sleeps == [1.0, 2.0, 1.0, 2.0, 1.0, 1.0, 2.0, 1.0]
 
 
 def test_cycle_passes_through_active_phase():
