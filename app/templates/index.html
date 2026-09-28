@@ -2,17 +2,50 @@
 <html lang="ja">
 <head>
   <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>分散ロボ基盤</title>
   <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
 </head>
 <body>
   <main id="app">
     <section id="form-view">
-      <h1>チェックイン</h1>
-      <form id="checkin-form">
-        <input id="guest-name-input" name="name" type="text" placeholder="お名前" required>
-        <button type="submit">チェックイン</button>
-      </form>
+      <h1>dBF Hotel</h1>
+
+      <div id="stage-start" class="stage">
+        <p>
+          ようこそお越しくださいました。<br>
+          下のボタンからチェックインを開始してください。
+        </p>
+        <button id="start-button" type="button">チェックイン</button>
+      </div>
+
+      <div id="stage-search" class="stage" hidden>
+        <p>
+          ご予約を確認します。<br>
+          お名前・予約番号・電話番号のいずれかを入力してください。
+        </p>
+        <form id="search-form">
+          <input id="search-input" name="query" type="text" value="田中太郎"
+                 placeholder="お名前 / 予約番号 / 電話番号" autocomplete="off" required>
+          <button type="submit">予約を検索</button>
+        </form>
+        <button class="secondary back-button" type="button" data-target="start">戻る</button>
+        <div id="search-error" class="error-text"></div>
+      </div>
+
+      <div id="stage-select" class="stage" hidden>
+        <p>該当するご予約が複数見つかりました。<br>ご自身のご予約をお選びください。</p>
+        <ul id="candidate-list"></ul>
+        <button class="secondary back-button" type="button" data-target="search">検索に戻る</button>
+      </div>
+
+      <div id="stage-confirm" class="stage" hidden>
+        <p>こちらのご予約でお間違いありませんか？</p>
+        <dl id="reservation-detail"></dl>
+        <button id="confirm-button" type="button">チェックインを確定する</button>
+        <button class="secondary back-button" type="button" data-target="search">検索に戻る</button>
+        <div id="confirm-error" class="error-text"></div>
+      </div>
     </section>
 
     <section id="progress-view" hidden>

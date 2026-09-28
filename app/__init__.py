@@ -8,11 +8,12 @@ from .clients.r2_client import R2Client
 from .routes.checkin import checkin_bp
 from .routes.events import events_bp
 from .routes.ui import ui_bp
+from .reservations import ReservationStore
 from .sse import EventBroadcaster
 from .state_machine import StateMachine, StateMachineRunner
 
 
-def create_app(r2_client=None, pf_client=None):
+def create_app(r2_client=None, pf_client=None, reservation_store=None):
     app = Flask(__name__)
 
     r2_client = r2_client or R2Client(
@@ -23,6 +24,10 @@ def create_app(r2_client=None, pf_client=None):
     )
     pf_client = pf_client or PFClient(
         base_url=config.PF_BASE_URL, timeout=config.HTTP_TIMEOUT_SECONDS
+    )
+
+    reservation_store = reservation_store or ReservationStore.from_file(
+        config.RESERVATIONS_FILE
     )
 
     broadcaster = EventBroadcaster()
@@ -37,6 +42,7 @@ def create_app(r2_client=None, pf_client=None):
     app.config["EVENT_BROADCASTER"] = broadcaster
     app.config["STATE_MACHINE"] = state_machine
     app.config["STATE_MACHINE_RUNNER"] = runner
+    app.config["RESERVATION_STORE"] = reservation_store
 
     app.register_blueprint(checkin_bp)
     app.register_blueprint(events_bp)

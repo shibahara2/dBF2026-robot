@@ -74,6 +74,37 @@ def test_second_checkin_is_rejected_immediately_after_first():
     assert second.status_code in (200, 409)
 
 
+def test_search_then_checkin_against_the_seeded_reservations():
+    app = create_app(r2_client=FakeR2Client(), pf_client=FakePFClient())
+    client = app.test_client()
+    state_machine = app.config["STATE_MACHINE"]
+
+    found = client.post("/api/reservations/search", json={"query": "DBF-1003"})
+    assert found.status_code == 200
+    reservations = found.get_json()["reservations"]
+    assert len(reservations) == 1
+    reservation = reservations[0]
+    assert reservation["guest_name"] == "鈴木翔太"
+
+    resp = client.post(
+        "/api/checkin", json={"reservation_id": reservation["reservation_id"]}
+    )
+    assert resp.status_code == 200
+    assert resp.get_json()["reservation"]["status"] == "reserved"
+
+    assert wait_until(
+        lambda: state_machine.snapshot()["step"] == "awaiting_checkin"
+        and state_machine.snapshot()["phase"] == "waiting"
+    )
+
+    # Check-in never writes back to the store, so the same reservation can run
+    # the demo again once the cycle is done.
+    again = client.post(
+        "/api/checkin", json={"reservation_id": reservation["reservation_id"]}
+    )
+    assert again.status_code == 200
+
+
 def test_index_route_served_through_app_factory():
     app = create_app(r2_client=FakeR2Client(), pf_client=FakePFClient())
     client = app.test_client()
@@ -81,7 +112,7 @@ def test_index_route_served_through_app_factory():
     resp = client.get("/")
 
     assert resp.status_code == 200
-    assert b'id="checkin-form"' in resp.data
+    assert b'id="search-form"' in resp.data
 
     assert client.get("/static/app.js").status_code == 200
     assert client.get("/static/style.css").status_code == 200
