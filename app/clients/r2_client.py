@@ -7,11 +7,14 @@ class R2Client:
         self._timeout = timeout
         self._drink_type = drink_type
         self._target_robot_id = target_robot_id
+        self._headers = {"Content-Type": "application/json"}
 
     def get_status(self):
         try:
             resp = requests.get(
-                f"{self._base_url}/v1/commands/load-drink/status", timeout=self._timeout
+                f"{self._base_url}/v1/commands/load-drink/status",
+                headers=self._headers,
+                timeout=self._timeout,
             )
         except requests.exceptions.Timeout:
             return {"outcome": "timeout", "request_id": None}
@@ -40,6 +43,7 @@ class R2Client:
         try:
             resp = requests.post(
                 f"{self._base_url}/v1/commands/load-drink",
+                headers=self._headers,
                 json=payload,
                 timeout=self._timeout,
             )

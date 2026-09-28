@@ -1,12 +1,17 @@
 import os
 import time
 
-from flask import Flask, jsonify
+from flask import Flask, jsonify, request
 
 
 def create_pf_mock_app():
     app = Flask(__name__)
     start_time = time.monotonic()
+
+    @app.before_request
+    def require_api_key():
+        if not request.headers.get("X-API-Key"):
+            return jsonify({"message": "unauthorized"}), 401
 
     @app.route("/api/v1/guide-robot/status", methods=["GET"])
     def guide_robot_status():

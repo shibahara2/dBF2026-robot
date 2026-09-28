@@ -23,7 +23,10 @@ def create_app(r2_client=None, pf_client=None, reservation_store=None):
         target_robot_id=config.TARGET_ROBOT_ID,
     )
     pf_client = pf_client or PFClient(
-        base_url=config.PF_BASE_URL, timeout=config.HTTP_TIMEOUT_SECONDS
+        base_url=config.PF_BASE_URL,
+        timeout=config.HTTP_TIMEOUT_SECONDS,
+        api_key=config.PF_API_KEY,
+        proxy_url=config.PF_PROXY_URL,
     )
 
     reservation_store = reservation_store or ReservationStore.from_file(

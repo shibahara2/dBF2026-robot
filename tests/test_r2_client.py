@@ -17,6 +17,7 @@ def test_get_status_loading():
         status=200,
     )
     assert make_client().get_status() == {"outcome": "loading", "request_id": "RID"}
+    assert responses.calls[0].request.headers["Content-Type"] == "application/json"
 
 
 @responses.activate
@@ -88,6 +89,7 @@ def test_post_load_drink_accepted_sends_expected_body():
     assert b'"request_id": "RID"' in sent_body
     assert b'"drink_type": "water"' in sent_body
     assert b'"target_robot_id": "temi"' in sent_body
+    assert responses.calls[0].request.headers["Content-Type"] == "application/json"
 
 
 @responses.activate

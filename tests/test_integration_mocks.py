@@ -39,7 +39,6 @@ class ServerThread:
 def mock_servers(monkeypatch):
     monkeypatch.setenv("R2_MOCK_LOADING_SECONDS", "0.1")
     monkeypatch.setenv("R2_MOCK_RETURNING_SECONDS", "0.1")
-
     r2_port = _free_port()
     pf_port = _free_port()
 
@@ -60,7 +59,9 @@ def mock_servers(monkeypatch):
 
 def test_real_clients_against_real_mocks_full_cycle(mock_servers):
     r2 = R2Client(base_url=mock_servers["r2_url"], timeout=2.0)
-    pf = PFClient(base_url=mock_servers["pf_url"], timeout=2.0)
+    pf = PFClient(
+        base_url=mock_servers["pf_url"], timeout=2.0, api_key="test-key"
+    )
 
     # PF starts ready (no PF_MOCK_INITIALIZING_SECONDS set).
     assert pf.get_guide_robot_status() == "ready"

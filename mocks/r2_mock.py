@@ -11,7 +11,7 @@ def create_r2_mock_app():
     state = {"request_id": "none", "status": "completed", "phase_started_at": None}
 
     def loading_seconds():
-        return float(os.environ.get("R2_MOCK_LOADING_SECONDS", "3"))
+        return 1.0
 
     def returning_seconds():
         return float(os.environ.get("R2_MOCK_RETURNING_SECONDS", "3"))

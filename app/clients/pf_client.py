@@ -2,14 +2,23 @@ import requests
 
 
 class PFClient:
-    def __init__(self, base_url, timeout):
+    def __init__(self, base_url, timeout, api_key="", proxy_url=""):
         self._base_url = base_url
         self._timeout = timeout
+        self._headers = {"Content-Type": "application/json"}
+        if api_key:
+            self._headers["X-API-Key"] = api_key
+        self._proxies = (
+            {"http": proxy_url, "https": proxy_url} if proxy_url else None
+        )
 
     def get_guide_robot_status(self):
         try:
             resp = requests.get(
-                f"{self._base_url}/api/v1/guide-robot/status", timeout=self._timeout
+                f"{self._base_url}/api/v1/guide-robot/status",
+                headers=self._headers,
+                proxies=self._proxies,
+                timeout=self._timeout,
             )
         except requests.exceptions.Timeout:
             return "timeout"
@@ -35,7 +44,11 @@ class PFClient:
     def post_drink_placed(self):
         try:
             resp = requests.post(
-                f"{self._base_url}/api/v1/drink/placed", timeout=self._timeout
+                f"{self._base_url}/api/v1/drink/placed",
+                headers=self._headers,
+                json={"result": "success"},
+                proxies=self._proxies,
+                timeout=self._timeout,
             )
         except requests.exceptions.RequestException:
             return False
