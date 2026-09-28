@@ -35,6 +35,10 @@ def create_app(decision: bool | None = None):
             return jsonify({"message": "PNG or JPEG image is required"}), 422
         return jsonify({"speaking_to_themis": configured_decision})
 
+    @app.get("/health")
+    def health():
+        return jsonify({"status": "ok"})
+
     return app
 
 

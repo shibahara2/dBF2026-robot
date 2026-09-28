@@ -179,6 +179,45 @@ The runner logs video health every 30 seconds, including connection attempts,
 received frames, processing errors, and time since the last frame. It warns
 when disconnected or when no frame has arrived for 10 seconds.
 
+### VLM API server
+
+`vlm_server` is the real replacement for the VLM mock. It keeps the same
+contract (`POST /analyze` with `{"image_base64": ...}`) and returns
+`{"speaking_to_themis": bool, "answer": "yes"|"no", "latency_ms": int}`.
+The yes/no prompt lives on the server (`vlm_server/prompt.py`); any `prompt`
+sent by a client is ignored. Images are downscaled to `VLM_MAX_IMAGE_SIDE`
+and sent to an OpenAI-compatible multimodal backend with a JSON schema that
+forces a `yes`/`no` answer. `GET /health` checks the backend.
+
+The default backend is the Qwen3.6-35B-A3B pod (`one-box-rag-chat` service).
+Set `VLM_BACKEND_URL` in `.env`, then:
+
+```
+.venv/bin/python -m vlm_server
+.venv/bin/python -m tools.vlm_client --health
+.venv/bin/python -m tools.vlm_client person.png other.jpg
+```
+
+`tools.vlm_client` prints one `path<TAB>yes|no<TAB>latency` line per image
+and exits non-zero if any request fails. `VLM_API_KEY`, when set, must be sent
+as `Authorization: Bearer ...` (the pipeline and CLI do this automatically).
+
+To measure the prompt against labeled images, run `tools.vlm_eval` while the
+server is up. Images live in `tests/fixtures/vlm/yes/` and
+`tests/fixtures/vlm/no/`; the directory name is the expected answer, so new
+cases (for example real Themis frames) are added by dropping files there.
+
+```
+.venv/bin/python -m tools.vlm_eval
+.venv/bin/python -m tools.vlm_eval --dataset path/to/frames --min-accuracy 0.9
+```
+
+It prints `OK`/`NG` per image plus accuracy, false positives, false negatives,
+and average latency, and exits non-zero on request errors or when accuracy is
+below `--min-accuracy`. The bundled fixtures are all derived from
+`person.png`; people who are near the robot but not addressing it are not yet
+covered.
+
 For the robot and external VLM, set `THEMIS_VLM_MODE=real` and configure
 `THEMIS_WS_URL`, `VLM_ENDPOINT`, and optionally `VLM_API_KEY` in `.env`.
 Real robot frames are currently forwarded as raw WebSocket payloads. The

@@ -30,3 +30,7 @@ def test_vlm_mock_rejects_non_image_payload():
     )
 
     assert response.status_code == 422
+
+
+def test_vlm_mock_health():
+    assert create_app(decision=False).test_client().get("/health").status_code == 200
