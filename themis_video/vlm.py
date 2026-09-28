@@ -1,4 +1,4 @@
-"""HTTP client for the external VLM decision endpoint."""
+"""HTTP client for the VLM API server's speaking-to-Themis decision."""
 
 from __future__ import annotations
 
@@ -18,10 +18,6 @@ class VLMClient:
         *,
         api_key: str | None = None,
         timeout: float = 10.0,
-        prompt: str = (
-            "画像を見て、人がThemisに話しかけている様子ならtrue、"
-            "そうでなければfalseを返してください。"
-        ),
         session: requests.Session | None = None,
     ) -> None:
         if not endpoint:
@@ -31,25 +27,25 @@ class VLMClient:
         self.endpoint = endpoint
         self.api_key = api_key
         self.timeout = timeout
-        self.prompt = prompt
         self.session = session or requests.Session()
 
-    def analyze(self, image_bytes: bytes) -> bool:
+    def _headers(self) -> dict[str, str]:
+        if self.api_key:
+            return {"Authorization": f"Bearer {self.api_key}"}
+        return {}
+
+    def analyze_detail(self, image_bytes: bytes) -> dict:
+        """Return the full server response (speaking_to_themis, answer, latency_ms)."""
         if not image_bytes:
             raise ValueError("image_bytes must not be empty")
 
-        headers = {"Content-Type": "application/json"}
-        if self.api_key:
-            headers["Authorization"] = f"Bearer {self.api_key}"
-        payload = {
-            "image_base64": base64.b64encode(image_bytes).decode("ascii"),
-            "prompt": self.prompt,
-        }
+        # The yes/no prompt is owned by the VLM server, so only the image is sent.
+        payload = {"image_base64": base64.b64encode(image_bytes).decode("ascii")}
         try:
             response = self.session.post(
                 self.endpoint,
                 json=payload,
-                headers=headers,
+                headers=self._headers(),
                 timeout=self.timeout,
             )
             response.raise_for_status()
@@ -57,7 +53,20 @@ class VLMClient:
         except (requests.RequestException, ValueError) as exc:
             raise VLMError("VLM request failed") from exc
 
-        decision = data.get("speaking_to_themis")
-        if not isinstance(decision, bool):
+        if not isinstance(data.get("speaking_to_themis"), bool):
             raise VLMError("VLM response must contain boolean speaking_to_themis")
-        return decision
+        return data
+
+    def analyze(self, image_bytes: bytes) -> bool:
+        return self.analyze_detail(image_bytes)["speaking_to_themis"]
+
+    def health(self) -> bool:
+        health_url = self.endpoint.rsplit("/", 1)[0] + "/health"
+        try:
+            response = self.session.get(
+                health_url, headers=self._headers(), timeout=self.timeout
+            )
+            response.raise_for_status()
+        except requests.RequestException:
+            return False
+        return True

@@ -51,3 +51,38 @@ def test_vlm_client_rejects_missing_decision():
 
     with pytest.raises(VLMError, match="speaking_to_themis"):
         VLMClient("https://vlm.example/analyze").analyze(b"frame")
+
+
+@responses.activate
+def test_vlm_client_does_not_send_prompt():
+    responses.add(
+        responses.POST,
+        "https://vlm.example/analyze",
+        json={"speaking_to_themis": True},
+    )
+
+    VLMClient("https://vlm.example/analyze").analyze(b"frame")
+
+    assert "prompt" not in responses.calls[0].request.body.decode()
+
+
+@responses.activate
+def test_vlm_client_wraps_server_errors():
+    responses.add(responses.POST, "https://vlm.example/analyze", status=502)
+
+    with pytest.raises(VLMError):
+        VLMClient("https://vlm.example/analyze").analyze(b"frame")
+
+
+@responses.activate
+def test_vlm_client_health_uses_sibling_health_endpoint():
+    responses.add(responses.GET, "https://vlm.example/health", json={"status": "ok"})
+
+    assert VLMClient("https://vlm.example/analyze").health() is True
+
+
+@responses.activate
+def test_vlm_client_health_is_false_on_error():
+    responses.add(responses.GET, "https://vlm.example/health", status=503)
+
+    assert VLMClient("https://vlm.example/analyze").health() is False
