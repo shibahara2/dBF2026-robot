@@ -202,6 +202,22 @@ Set `VLM_BACKEND_URL` in `.env`, then:
 and exits non-zero if any request fails. `VLM_API_KEY`, when set, must be sent
 as `Authorization: Bearer ...` (the pipeline and CLI do this automatically).
 
+To measure the prompt against labeled images, run `tools.vlm_eval` while the
+server is up. Images live in `tests/fixtures/vlm/yes/` and
+`tests/fixtures/vlm/no/`; the directory name is the expected answer, so new
+cases (for example real Themis frames) are added by dropping files there.
+
+```
+.venv/bin/python -m tools.vlm_eval
+.venv/bin/python -m tools.vlm_eval --dataset path/to/frames --min-accuracy 0.9
+```
+
+It prints `OK`/`NG` per image plus accuracy, false positives, false negatives,
+and average latency, and exits non-zero on request errors or when accuracy is
+below `--min-accuracy`. The bundled fixtures are all derived from
+`person.png`; people who are near the robot but not addressing it are not yet
+covered.
+
 For the robot and external VLM, set `THEMIS_VLM_MODE=real` and configure
 `THEMIS_WS_URL`, `VLM_ENDPOINT`, and optionally `VLM_API_KEY` in `.env`.
 Real robot frames are currently forwarded as raw WebSocket payloads. The
