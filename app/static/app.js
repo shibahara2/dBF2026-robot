@@ -233,5 +233,10 @@ resetButton.addEventListener("click", () => {
 
 const eventSource = new EventSource("/api/events");
 eventSource.onmessage = (event) => {
-  render(JSON.parse(event.data));
+  const payload = JSON.parse(event.data);
+  if (payload.type === "ui_action" && payload.action === "start_checkin") {
+    showStage("search");
+    return;
+  }
+  render(payload);
 };

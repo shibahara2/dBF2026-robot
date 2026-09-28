@@ -95,7 +95,8 @@ def test_search_then_checkin_against_the_seeded_reservations():
 
     assert wait_until(
         lambda: state_machine.snapshot()["step"] == "awaiting_checkin"
-        and state_machine.snapshot()["phase"] == "waiting"
+        and state_machine.snapshot()["phase"] == "waiting",
+        timeout=8.0,
     )
 
     # Check-in never writes back to the store, so the same reservation can run

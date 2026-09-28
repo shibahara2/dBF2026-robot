@@ -131,6 +131,61 @@ pytest -q \
 The local PF mock requires a non-empty `X-API-Key`, but does not validate its
 value.
 
+## Themis WebSocket image client
+
+The external VLM server can connect as a WebSocket client to the existing
+Themis `gamepad-server`; this repository does not subscribe to ROS topics.
+Configure the endpoint without hard-coding a robot address:
+
+```
+export THEMIS_WS_URL="ws://<themis-main-pc>:9002/zed2i"
+```
+
+The physical endpoint can be checked before VLM integration with:
+
+```
+python tools/check_themis_video.py "$THEMIS_WS_URL" --duration 10
+```
+
+The probe reports binary message sizes and arrival intervals. The server is
+expected to deliver frames at up to 2 Hz. The payload is kept raw until the
+Themis-specific binary header is verified on the physical robot.
+To capture one frame for decoder analysis, add
+`--save-first-frame themis-frame.bin`.
+
+When the external VLM detects that someone is speaking to Themis, it can call
+`POST /api/visual/start`. This only moves the single kiosk browser to the
+existing search screen; it does not start check-in or submit a name. The user
+then enters their name, reservation number, or phone number and continues
+through the existing reservation flow.
+
+For local end-to-end testing, run the existing Flask app, the VLM mock, and
+the Themis WebSocket mock in separate terminals.
+
+The WebSocket mock repeatedly sends the repository's `person.png` as a PNG
+image at the configured interval (0.5 seconds by default).
+The VLM mock checks for PNG or JPEG image bytes, then returns the fixed
+`VLM_MOCK_DECISION` value; it does not inspect the scene.
+
+Set `THEMIS_VLM_MODE=mock` in `.env` (the example file uses this mode), then:
+
+```
+VLM_MOCK_DECISION=true .venv/bin/python -m mocks.vlm_mock
+.venv/bin/python -m mocks.themis_video_mock
+.venv/bin/python tools/run_themis_vlm.py
+```
+
+The runner logs video health every 30 seconds, including connection attempts,
+received frames, processing errors, and time since the last frame. It warns
+when disconnected or when no frame has arrived for 10 seconds.
+
+For the robot and external VLM, set `THEMIS_VLM_MODE=real` and configure
+`THEMIS_WS_URL`, `VLM_ENDPOINT`, and optionally `VLM_API_KEY` in `.env`.
+Real robot frames are currently forwarded as raw WebSocket payloads. The
+Themis-specific image header must be decoded before a production VLM can
+reliably analyze them; capture a sample with `--save-first-frame` to verify
+the format first.
+
 ## Switching to the real systems
 
 Cutting over from the mocks to the real AI管制PF/R2/Themis systems requires

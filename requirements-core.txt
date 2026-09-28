@@ -1,5 +1,7 @@
 flask==3.0.3
 requests==2.32.3
+websocket-client==1.8.0
+websockets==13.1
 pytest==8.3.3
 responses==0.25.3
 python-dotenv==1.0.1
