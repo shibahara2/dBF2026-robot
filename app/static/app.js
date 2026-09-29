@@ -51,6 +51,19 @@ function showStage(name) {
   }
 }
 
+// Entry reports only feed the debug view, so failures are ignored.
+function reportEntry(stage) {
+  fetch("/api/entry", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ stage: stage }),
+  }).catch(() => {});
+}
+
+function clearEntry() {
+  fetch("/api/entry", { method: "DELETE" }).catch(() => {});
+}
+
 function resetFlow() {
   selectedReservation = null;
   candidateList.replaceChildren();
@@ -89,6 +102,7 @@ function selectReservation(reservation) {
   selectedReservation = reservation;
   renderDetail(reservation);
   showStage("confirm");
+  reportEntry("select");
 }
 
 function renderCandidates(reservations) {
@@ -204,7 +218,10 @@ function render(snapshot) {
   lastStep = snapshot.step;
 }
 
-startButton.addEventListener("click", () => showStage("search"));
+startButton.addEventListener("click", () => {
+  showStage("search");
+  reportEntry("start");
+});
 
 searchForm.addEventListener("submit", (event) => {
   event.preventDefault();
@@ -221,8 +238,10 @@ document.querySelectorAll(".back-button").forEach((button) => {
   button.addEventListener("click", () => {
     if (button.dataset.target === "start") {
       resetFlow();
+      clearEntry();
     } else {
       showStage(button.dataset.target);
+      reportEntry("start");
     }
   });
 });
