@@ -9,7 +9,8 @@ import requests
 
 logger = logging.getLogger(__name__)
 
-_DEFAULT_SPEAKER_ID = 74
+# Same voice as dimos' VOICEVOX profile.
+_DEFAULT_SPEAKER_ID = 29
 
 
 def synthesize_speech(text, base_url, speaker_id=_DEFAULT_SPEAKER_ID, speed_scale=1.0, timeout=30.0):
@@ -53,11 +54,20 @@ def _probe_voicevox(base_url, attempts=10, timeout=10.0):
 
 
 class VoicevoxSpeaker:
-    def __init__(self, base_url, output_sink, speaker_id=_DEFAULT_SPEAKER_ID, speed_scale=1.0):
+    def __init__(
+        self,
+        base_url,
+        output_sink,
+        speaker_id=_DEFAULT_SPEAKER_ID,
+        speed_scale=1.0,
+        synthesize=synthesize_speech,
+    ):
         self._base_url = base_url
         self._output_sink = output_sink
         self._speaker_id = speaker_id
         self._speed_scale = speed_scale
+        self._synthesize = synthesize
+        self._cache = {}
         self._queue = []
         self._lock = threading.Lock()
         self._running = True
@@ -66,6 +76,17 @@ class VoicevoxSpeaker:
     def start(self):
         _probe_voicevox(self._base_url)
         self._thread.start()
+
+    def preload(self, texts):
+        """Synthesize fixed phrases up front; failures fall back to on-demand."""
+        for text in texts:
+            try:
+                self._cache[text] = self._synthesize(
+                    text, self._base_url, self._speaker_id, self._speed_scale
+                )
+            except Exception:  # noqa: BLE001 - a missing phrase is synthesized later
+                logger.warning("音声の事前合成に失敗しました。text=%r", text, exc_info=True)
+        logger.info("音声を事前合成しました: %d/%d件", len(self._cache), len(texts))
 
     def speak(self, text):
         if not text.strip():
@@ -87,12 +108,18 @@ class VoicevoxSpeaker:
                 time.sleep(0.05)
                 continue
             try:
-                waveform, sample_rate, channels = synthesize_speech(
-                    text, self._base_url, self._speaker_id, self._speed_scale
-                )
-                self._output_sink.write(waveform, sample_rate, channels)
+                self._play(text)
             except Exception:  # noqa: BLE001 - keep the speak loop alive across failures
                 logger.warning(
                     "音声合成/出力に失敗しました。text=%r", text, exc_info=True
                 )
                 continue
+
+    def _play(self, text):
+        audio = self._cache.get(text)
+        if audio is None:
+            audio = self._synthesize(
+                text, self._base_url, self._speaker_id, self._speed_scale
+            )
+        waveform, sample_rate, channels = audio
+        self._output_sink.write(waveform, sample_rate, channels)

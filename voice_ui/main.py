@@ -7,8 +7,9 @@ from .mic import SounddeviceMicSource
 from .pipeline import run_start_once
 from .progress_announcer import ProgressAnnouncer
 from .speaker import SounddeviceSpeakerSink
-from .start_client import VoiceStartClient
 from .sse_events import iter_sse_events
+from .start_client import VoiceStartClient
+from .step_messages import PRELOAD_TEXTS
 from .stt import WhisperTranscriber
 from .tts import VoicevoxSpeaker
 from .vad_segmenter import SileroVadSegmenter
@@ -134,6 +135,7 @@ def main():
     speaker_sink = SounddeviceSpeakerSink()
     speaker = VoicevoxSpeaker(base_url=config.VOICEVOX_URL, output_sink=speaker_sink)
     speaker.start()
+    speaker.preload(PRELOAD_TEXTS)
 
     progress_thread = threading.Thread(
         target=run_progress_loop, args=(speaker,), daemon=True
