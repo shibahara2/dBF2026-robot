@@ -4,7 +4,7 @@ import wave
 
 import responses
 
-from voice_ui.step_messages import PRELOAD_TEXTS, STEP_MESSAGES, VOICE_START_GUIDANCE
+from voice_ui.step_messages import PRELOAD_TEXTS, VOICE_START_GUIDANCE
 from voice_ui.tts import VoicevoxSpeaker, synthesize_speech
 
 
@@ -148,5 +148,5 @@ def test_preload_failure_is_skipped_and_retried_on_demand():
     assert sink.writes == [("wave:成功する文", 24000, 1)]
 
 
-def test_preload_texts_cover_every_fixed_message():
-    assert set(PRELOAD_TEXTS) == set(STEP_MESSAGES.values()) | {VOICE_START_GUIDANCE}
+def test_preload_texts_are_the_fixed_phrases_voice_ui_speaks():
+    assert PRELOAD_TEXTS == [VOICE_START_GUIDANCE]

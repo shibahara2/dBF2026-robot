@@ -101,7 +101,7 @@ def test_run_progress_loop_backoff_doubles_up_to_cap_when_no_events_succeed():
 def test_run_progress_loop_speaks_handled_snapshots():
     def factory():
         return _gen(
-            [{"phase": "active", "step": "polling_r2_active"}],
+            [{"phase": "error", "step": "polling_r2_active", "error_message": "失敗"}],
             error=_StopLoop(),
         )
 
@@ -114,7 +114,7 @@ def test_run_progress_loop_speaks_handled_snapshots():
             sleep_func=lambda seconds: None,
         )
 
-    assert speaker.spoken  # STEP_MESSAGES lookup produced at least one utterance
+    assert speaker.spoken == ["失敗"]
 
 
 def test_checkin_loop_body_raises_after_threshold_consecutive_no_utterance():

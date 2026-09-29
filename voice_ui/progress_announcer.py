@@ -1,12 +1,13 @@
-from .step_messages import STEP_MESSAGES, VOICE_START_GUIDANCE
+from .step_messages import VOICE_START_GUIDANCE
 
 _VOICE_START = ("voice", "start")
 
 
 class ProgressAnnouncer:
+    """Speaks the voice-start guidance and errors; step progress stays silent."""
+
     def __init__(self, speak):
         self._speak = speak
-        self._last_step = None
         self._last_phase = None
         self._last_entry = None
 
@@ -21,19 +22,6 @@ class ProgressAnnouncer:
         self._last_entry = entry
 
         phase = snapshot.get("phase")
-        step = snapshot.get("step")
-
-        if phase == "error":
-            if self._last_phase != "error":
-                self._speak(snapshot.get("error_message") or "エラーが発生しました")
-            self._last_phase = phase
-            self._last_step = step
-            return
-
-        if step != self._last_step:
-            message = STEP_MESSAGES.get(step)
-            if message:
-                self._speak(message)
-
+        if phase == "error" and self._last_phase != "error":
+            self._speak(snapshot.get("error_message") or "エラーが発生しました")
         self._last_phase = phase
-        self._last_step = step

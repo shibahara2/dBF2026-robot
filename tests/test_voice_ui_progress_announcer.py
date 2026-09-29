@@ -1,30 +1,19 @@
 from voice_ui.progress_announcer import ProgressAnnouncer
 
 
-def test_speaks_message_when_step_changes():
+def test_step_progress_is_not_spoken():
     spoken = []
     announcer = ProgressAnnouncer(speak=spoken.append)
 
-    announcer.handle_snapshot({"phase": "waiting", "step": "polling_pf_ready"})
-
-    assert spoken == ["AI管制PF(案内ロボット)の状態を確認しています"]
-
-
-def test_does_not_repeat_message_for_same_step():
-    spoken = []
-    announcer = ProgressAnnouncer(speak=spoken.append)
-
-    announcer.handle_snapshot({"phase": "waiting", "step": "polling_pf_ready"})
-    announcer.handle_snapshot({"phase": "waiting", "step": "polling_pf_ready"})
-
-    assert spoken == ["AI管制PF(案内ロボット)の状態を確認しています"]
-
-
-def test_silent_for_awaiting_checkin_step():
-    spoken = []
-    announcer = ProgressAnnouncer(speak=spoken.append)
-
-    announcer.handle_snapshot({"phase": "waiting", "step": "awaiting_checkin"})
+    for step in [
+        "awaiting_checkin",
+        "polling_pf_ready",
+        "polling_r2_ready",
+        "sending_load_drink",
+        "polling_r2_active",
+        "notifying_pf_placed",
+    ]:
+        announcer.handle_snapshot({"phase": "waiting", "step": step})
 
     assert spoken == []
 
@@ -55,17 +44,20 @@ def test_speaks_fallback_text_when_error_message_missing():
     assert spoken == ["エラーが発生しました"]
 
 
-def test_returning_to_waiting_after_error_allows_next_step_message():
+def test_next_error_after_recovery_is_spoken_again():
     spoken = []
     announcer = ProgressAnnouncer(speak=spoken.append)
 
     announcer.handle_snapshot(
-        {"phase": "error", "step": "polling_r2_ready", "error_message": "失敗"}
+        {"phase": "error", "step": "polling_r2_ready", "error_message": "失敗1"}
     )
     announcer.handle_snapshot({"phase": "waiting", "step": "awaiting_checkin"})
     announcer.handle_snapshot({"phase": "waiting", "step": "polling_pf_ready"})
+    announcer.handle_snapshot(
+        {"phase": "error", "step": "polling_pf_ready", "error_message": "失敗2"}
+    )
 
-    assert spoken == ["失敗", "AI管制PF(案内ロボット)の状態を確認しています"]
+    assert spoken == ["失敗1", "失敗2"]
 
 
 GUIDANCE = "画面にお名前、予約番号、または電話番号を入力してください"
@@ -102,12 +94,13 @@ def test_no_guidance_for_other_entries():
     assert spoken == []
 
 
-def test_ui_action_events_do_not_reset_step_memory():
+def test_ui_action_events_do_not_reset_error_memory():
     spoken = []
     announcer = ProgressAnnouncer(speak=spoken.append)
+    error = {"phase": "error", "step": "polling_pf_ready", "error_message": "失敗"}
 
-    announcer.handle_snapshot({"phase": "waiting", "step": "polling_pf_ready"})
+    announcer.handle_snapshot(error)
     announcer.handle_snapshot({"type": "ui_action", "action": "start_checkin"})
-    announcer.handle_snapshot({"phase": "waiting", "step": "polling_pf_ready"})
+    announcer.handle_snapshot(error)
 
-    assert spoken == ["AI管制PF(案内ロボット)の状態を確認しています"]
+    assert spoken == ["失敗"]
