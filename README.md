@@ -58,10 +58,10 @@ development:
 
 ```
 python run_mocks.py   # starts the R2 mock on :5001 and the PF mock on :5002
-python run.py          # starts this app on :5000
+python run.py          # starts this app on :5100
 ```
 
-Then open `http://localhost:5000/` in a browser: enter a name to check in
+Then open `http://localhost:5100/` in a browser: search a reservation to check in
 and watch the check-in -> guide-robot-ready -> drink-load -> drink-delivered
 progress update live via SSE. While one guest's cycle is in progress,
 anyone else who opens the page sees a waiting message instead of the form.

@@ -15,7 +15,7 @@ def test_defaults_when_env_not_set(monkeypatch):
     from voice_ui import config
     importlib.reload(config)
 
-    assert config.FLASK_BASE_URL == "http://localhost:5000"
+    assert config.FLASK_BASE_URL == "http://localhost:5100"
     assert config.VOICEVOX_URL == "http://127.0.0.1:50021"
     assert config.WHISPER_MODEL == "large-v3"
     assert config.WHISPER_DEVICE == "cuda"
