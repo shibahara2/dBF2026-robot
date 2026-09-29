@@ -32,6 +32,7 @@ def run_turn_once(
     avg_logprob_min,
     read_timeout=1.0,
     clock=time.perf_counter,
+    sample_rate=16000,
 ):
     utterance = None
     while utterance is None:
@@ -40,9 +41,10 @@ def run_turn_once(
             return "no_utterance"
         utterance = vad_segmenter.feed(chunk)
 
-    # Decide before transcribing: the speaker state is what it was when the
-    # utterance ended, not after Whisper's delay.
-    self_echo = speaker.is_busy()
+    # Decide before transcribing, over the utterance's whole time window: the
+    # segment closes only after trailing silence, so "speaking right now" is
+    # not enough to recognise our own voice.
+    self_echo = speaker.was_speaking_during(len(utterance) / sample_rate)
 
     started = clock()
     text, no_speech_prob, avg_logprob = transcriber.transcribe(utterance)
@@ -77,6 +79,8 @@ def run_turn_once(
         return finish("rejected_low_confidence")
 
     if contains_start_keyword(text, start_keywords):
+        if dialogue_agent is not None:
+            dialogue_agent.reset()  # moving on to check-in, like an LLM "checkin"
         _request_start(start_client, speaker, text)
         return finish("keyword_start")
 

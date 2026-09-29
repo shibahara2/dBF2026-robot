@@ -94,7 +94,8 @@
 - `assistant` に入れるのは `chat` の `reply` のみ。`ignore` の発話は履歴に残さない。
 - 最後の発話から `DIALOGUE_IDLE_RESET_SECONDS`（既定60秒）たったら履歴を消す
   （次の来場者に前の会話を持ち込まない）。
-- `checkin` と判定したら、その時点で履歴を消す（手続きに移るため）。
+- `checkin` と判定したとき、およびキーワードで開始したときは、その時点で履歴を消す（手続きに移るため）。
+- 60秒の計測は最後の `chat` からとする（`ignore` の周囲の会話で履歴が延命されないように）。
 
 ## ホテル情報
 
@@ -107,10 +108,13 @@
 
 ## 自分の声への対策（エコーガード）
 
-- `VoicevoxSpeaker` は「再生中、または最後の再生終了から `ECHO_GUARD_SECONDS`
-  （既定0.5秒）以内か」を返す `is_busy()` を持つ。
-- パイプラインは、発話区間が確定した時点で `is_busy()` が真なら、その発話を
-  LLM にもキーワード判定にも回さず破棄する（outcome `self_echo`）。
+- `VoicevoxSpeaker` は直近の再生区間（開始・終了時刻）を記録し、
+  `was_speaking_during(seconds)` で「今終わった長さ `seconds` の発話区間が、
+  再生区間（終了後 `ECHO_GUARD_SECONDS`、既定0.5秒まで延長）と重なったか」を返す。
+- パイプラインは、発話区間が確定した時点で、発話の長さからその区間を逆算して
+  判定し、重なっていればその発話を LLM にもキーワード判定にも回さず破棄する
+  （outcome `self_echo`）。VAD は末尾の無音（0.5秒）を待ってから区間を確定するため、
+  「確定時点で再生中か」だけでは自分の声を見逃す。
 - 読み上げ途中の割り込み（バージイン）はしない。
 
 ## 返事の読み上げ
@@ -118,7 +122,7 @@
 - `reply` を「。」「！」「？」（全角・半角）で文に区切り、1文ずつ `speak` する。
 - `VoicevoxSpeaker` は合成スレッドと再生スレッドに分ける。合成済みの音声を
   キューに積み、1文目の再生中に2文目を合成する。順序は投入順を保つ。
-- 事前合成（`preload`）の対象は `VOICE_START_GUIDANCE` と `BUSY_MESSAGE`。
+- 事前合成（`preload`）の対象は `VOICE_START_GUIDANCE` と `BUSY_MESSAGE`。`speak` が文単位で引くので、キャッシュも文単位で持つ。
 
 ## 会話ログ（デバッグ画面）
 
@@ -189,7 +193,7 @@
 - パイプライン: キーワードなら LLM を呼ばない、checkin/chat/ignore の振り分け、
   409 で `BUSY_MESSAGE`、エコーガードでの破棄、`DIALOGUE_ENABLED=0`、
   ターン送信の内容。
-- スピーカー: 文の区切り、合成と再生の順序、`is_busy()` の時間判定（時計を注入）。
+- スピーカー: 文の区切り、合成と再生の順序、`was_speaking_during()` の区間判定（時計を注入）。
 - アプリ: `/api/voice/turns` の検証・保持件数・SSE 配信・GET の順序。
 - デバッグ画面: 「音声対話ログ」欄の要素と `debug.js` が `voice_turn` を扱うこと。
 - 判定精度の評価: `tools/dialogue_eval.py` と `tests/fixtures/dialogue/cases.json`

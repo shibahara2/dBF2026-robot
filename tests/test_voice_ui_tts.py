@@ -207,28 +207,74 @@ def test_preload_failure_is_skipped_and_retried_on_demand():
     assert sink.writes == [("wave:成功する文", 24000, 1)]
 
 
-def test_is_busy_while_playing_and_during_echo_guard():
+def _played_for_two_seconds(clock):
+    """Speak one sentence whose playback runs from t=100.0 to t=102.0."""
+    def on_write():
+        clock.value += 2.0
+
+    speaker = _speaker(_FakeSynth(), _FakeSink(on_write=on_write), clock)
+    speaker.speak("こんにちは。")
+    speaker._synth_once()
+    speaker._play_once()
+    return speaker
+
+
+def test_nothing_played_is_not_echo():
+    assert _speaker(_FakeSynth()).was_speaking_during(5.0) is False
+
+
+def test_reported_as_speaking_while_playing():
     clock = _FakeClock()
-    busy_during_write = []
+    seen = []
     speaker = None
 
     def on_write():
-        busy_during_write.append(speaker.is_busy())
-        clock.value += 2.0  # playback takes 2 seconds
+        seen.append(speaker.was_speaking_during(0.1))
 
-    sink = _FakeSink(on_write=on_write)
-    speaker = _speaker(_FakeSynth(), sink, clock)
-
-    assert speaker.is_busy() is False
+    speaker = _speaker(_FakeSynth(), _FakeSink(on_write=on_write), clock)
     speaker.speak("こんにちは。")
     speaker._synth_once()
     speaker._play_once()
 
-    assert busy_during_write == [True]
-    clock.value += 0.49
-    assert speaker.is_busy() is True
-    clock.value += 0.02
-    assert speaker.is_busy() is False
+    assert seen == [True]
+
+
+def test_echo_segment_closed_after_trailing_silence_is_caught():
+    # The mic heard our reply (100-102) and VAD closed the segment only after
+    # ~0.5 s of trailing silence, i.e. later than the 0.5 s guard after playback.
+    clock = _FakeClock()
+    speaker = _played_for_two_seconds(clock)
+
+    clock.value = 102.0 + 0.55
+    assert speaker.was_speaking_during(2.55) is True
+
+
+def test_utterance_starting_within_guard_is_echo():
+    clock = _FakeClock()
+    speaker = _played_for_two_seconds(clock)
+
+    clock.value = 104.3  # segment 102.3-104.3 starts 0.3 s after playback ended
+    assert speaker.was_speaking_during(2.0) is True
+
+
+def test_visitor_utterance_after_guard_is_not_echo():
+    clock = _FakeClock()
+    speaker = _played_for_two_seconds(clock)
+
+    clock.value = 105.0  # segment 103.0-105.0 starts 1 s after playback ended
+    assert speaker.was_speaking_during(2.0) is False
+
+
+def test_preloaded_multi_sentence_phrase_needs_no_synthesis():
+    synth = _FakeSynth()
+    speaker = _speaker(synth)
+    speaker.preload([BUSY_MESSAGE])
+    synth.calls.clear()
+
+    speaker.speak(BUSY_MESSAGE)
+    _drain(speaker)
+
+    assert synth.calls == []
 
 
 def test_preload_texts_are_the_fixed_phrases_voice_ui_speaks():

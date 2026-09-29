@@ -1,5 +1,7 @@
 import logging
 
+import numpy as np
+
 from voice_ui.dialogue import Decision
 from voice_ui.pipeline import run_turn_once
 from voice_ui.step_messages import BUSY_MESSAGE
@@ -18,14 +20,15 @@ class _FakeMicSource:
 
 
 class _FakeVadSegmenter:
-    def __init__(self, utterance_after):
+    def __init__(self, utterance_after, utterance="UTTERANCE"):
         self._utterance_after = utterance_after
+        self._utterance = utterance
         self._count = 0
 
     def feed(self, chunk):
         self._count += 1
         if self._count >= self._utterance_after:
-            return "UTTERANCE"
+            return self._utterance
         return None
 
 
@@ -50,12 +53,14 @@ class _FakeStartClient:
 class _FakeSpeaker:
     def __init__(self, busy=False):
         self.spoken = []
+        self.echo_checks = []
         self._busy = busy
 
     def speak(self, text):
         self.spoken.append(text)
 
-    def is_busy(self):
+    def was_speaking_during(self, seconds):
+        self.echo_checks.append(seconds)
         return self._busy
 
 
@@ -72,17 +77,22 @@ class _FakeAgent:
     def __init__(self, decision):
         self.decision = decision
         self.calls = []
+        self.resets = 0
 
     def respond(self, text):
         self.calls.append(text)
         return self.decision
 
+    def reset(self):
+        self.resets += 1
+
 
 class _Env:
     def __init__(self, transcription, decision=Decision("ignore", ""), start_result="accepted",
-                 busy=False, dialogue=True, chunks=(object(),), utterance_after=1):
+                 busy=False, dialogue=True, chunks=(object(),), utterance_after=1,
+                 utterance="UTTERANCE"):
         self.mic = _FakeMicSource(list(chunks))
-        self.vad = _FakeVadSegmenter(utterance_after)
+        self.vad = _FakeVadSegmenter(utterance_after, utterance)
         self.transcriber = _FakeTranscriber(transcription)
         self.start_client = _FakeStartClient(start_result)
         self.speaker = _FakeSpeaker(busy)
@@ -196,3 +206,19 @@ def test_multiple_chunks_are_fed_until_utterance_completes():
     env = _Env(("チェックイン", 0.1, -0.2), chunks=(object(), object(), object()), utterance_after=3)
 
     assert env.run() == "keyword_start"
+
+
+def test_echo_check_covers_the_whole_utterance_duration():
+    env = _Env(("こんにちは", 0.1, -0.2), utterance=np.zeros(32000, dtype=np.float32))
+
+    env.run()
+
+    assert env.speaker.echo_checks == [2.0]
+
+
+def test_keyword_start_clears_dialogue_history():
+    env = _Env(("チェックインお願いします", 0.1, -0.2))
+
+    env.run()
+
+    assert env.agent.resets == 1

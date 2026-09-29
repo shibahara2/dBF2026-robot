@@ -5,6 +5,7 @@ import re
 import threading
 import time
 import wave
+from collections import deque
 
 import numpy as np
 import requests
@@ -87,7 +88,7 @@ class VoicevoxSpeaker:
         self._audio = queue.Queue()
         self._lock = threading.Lock()
         self._playing = False
-        self._last_played_at = None
+        self._played = deque(maxlen=20)  # (start, end) of recent playback
         self._running = True
         self._threads = [
             threading.Thread(target=self._loop, args=(self._synth_once,), daemon=True),
@@ -100,28 +101,39 @@ class VoicevoxSpeaker:
             thread.start()
 
     def preload(self, texts):
-        """Synthesize fixed phrases up front; failures fall back to on-demand."""
-        for text in texts:
+        """Synthesize fixed phrases up front; failures fall back to on-demand.
+
+        Cached per sentence because speak() looks sentences up one by one.
+        """
+        sentences = [s for text in texts for s in split_sentences(text)]
+        for sentence in sentences:
             try:
-                self._cache[text] = self._synthesize(
-                    text, self._base_url, self._speaker_id, self._speed_scale
+                self._cache[sentence] = self._synthesize(
+                    sentence, self._base_url, self._speaker_id, self._speed_scale
                 )
             except Exception:  # noqa: BLE001 - a missing phrase is synthesized later
-                logger.warning("音声の事前合成に失敗しました。text=%r", text, exc_info=True)
-        logger.info("音声を事前合成しました: %d/%d件", len(self._cache), len(texts))
+                logger.warning("音声の事前合成に失敗しました。text=%r", sentence, exc_info=True)
+        logger.info("音声を事前合成しました: %d/%d文", len(self._cache), len(sentences))
 
     def speak(self, text):
         for sentence in split_sentences(text):
             self._texts.put(sentence)
 
-    def is_busy(self):
-        """True while playing and for a short tail, so the mic ignores our own voice."""
+    def was_speaking_during(self, seconds):
+        """True if an utterance lasting `seconds` and ending now overlapped our playback.
+
+        The VAD closes a segment only after trailing silence, so checking just
+        "is playing now" misses our own echo; compare whole time windows instead.
+        """
         with self._lock:
             if self._playing:
                 return True
-            if self._last_played_at is None:
-                return False
-            return self._clock() - self._last_played_at < self._echo_guard_seconds
+            end = self._clock()
+            start = end - seconds
+            return any(
+                played_start <= end and start <= played_end + self._echo_guard_seconds
+                for played_start, played_end in self._played
+            )
 
     def stop(self):
         self._running = False
@@ -155,6 +167,7 @@ class VoicevoxSpeaker:
             return False
         with self._lock:
             self._playing = True
+            started = self._clock()
         try:
             self._output_sink.write(*audio)
         except Exception:  # noqa: BLE001 - keep the playback loop alive
@@ -162,5 +175,5 @@ class VoicevoxSpeaker:
         finally:
             with self._lock:
                 self._playing = False
-                self._last_played_at = self._clock()
+                self._played.append((started, self._clock()))
         return True

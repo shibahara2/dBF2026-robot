@@ -133,3 +133,28 @@ def test_llm_error_is_treated_as_ignore():
     llm = FakeLLM(DialogueLLMError("timeout"))
 
     assert _agent(llm).respond("こんにちは") == Decision("ignore", "")
+
+
+def test_reset_forgets_the_conversation():
+    llm = FakeLLM(chat("こんにちは。"), chat("はい。"))
+    agent = _agent(llm)
+
+    agent.respond("こんにちは")
+    agent.reset()
+    agent.respond("朝食は？")
+
+    assert llm.calls[1][1:] == [{"role": "user", "content": "朝食は？"}]
+
+
+def test_background_chatter_does_not_keep_old_history_alive():
+    clock = FakeClock()
+    llm = FakeLLM(chat("こんにちは。"), {"intent": "ignore", "reply": ""}, chat("はい。"))
+    agent = _agent(llm, clock=clock)
+
+    agent.respond("こんにちは")
+    clock.value = 50.0
+    agent.respond("それでさあ")
+    clock.value = 70.0  # 70 s after the last chat, only 20 s after the chatter
+    agent.respond("朝食は？")
+
+    assert llm.calls[2][1:] == [{"role": "user", "content": "朝食は？"}]

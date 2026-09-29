@@ -47,14 +47,18 @@ class DialogueAgent:
         self._idle_reset_seconds = idle_reset_seconds
         self._clock = clock
         self._history = []
-        self._last_at = None
+        self._last_chat_at = None
+
+    def reset(self):
+        self._history.clear()
+        self._last_chat_at = None
 
     def respond(self, text):
         now = self._clock()
-        if self._last_at is not None and now - self._last_at >= self._idle_reset_seconds:
-            # A new visitor should not inherit the previous conversation.
-            self._history.clear()
-        self._last_at = now
+        # A new visitor should not inherit the previous conversation. Measured
+        # from the last chat so background chatter cannot keep it alive.
+        if self._last_chat_at is not None and now - self._last_chat_at >= self._idle_reset_seconds:
+            self.reset()
 
         user = {"role": "user", "content": text}
         try:
@@ -66,9 +70,10 @@ class DialogueAgent:
         intent = result["intent"]
         reply = result["reply"].strip()
         if intent == "checkin":
-            self._history.clear()
+            self.reset()
             return Decision("checkin", "")
         if intent == "chat" and reply:
+            self._last_chat_at = now
             self._history += [user, {"role": "assistant", "content": reply}]
             del self._history[: -2 * self._history_turns]
             return Decision("chat", reply)
