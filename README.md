@@ -93,7 +93,7 @@ VOICEVOXエンジン（`http://127.0.0.1:50021`）が別途起動している必
 ### 音声対話（フロント雑談）
 
 「チェックイン」を含む発話はすぐにキオスクを検索画面にする。それ以外の
-発話は LLM（既定は Qwen3.6 pod、`DIALOGUE_LLM_URL`）が判定し、
+発話は LLM（既定はローカルの llama-server、`DIALOGUE_LLM_URL`）が判定し、
 チェックインの意図なら同じく検索画面へ、フロントへの質問・雑談なら
 返事を読み上げ、宛てでない会話には黙る。ホテルの事実は
 `data/hotel_info.md`（デモ用の架空ホテル）に基づいて答える。
@@ -111,6 +111,24 @@ docker run -d --name voicevox -p 127.0.0.1:50021:50021 --cpuset-cpus=5-9,15-19 \
 ```
 
 固定しないと1文の合成が2〜9秒ぶれることを計測で確認している。
+
+LLM（Qwen3.6-35B-A3B）は llama.cpp の公式イメージで起動する。音声対話
+（`DIALOGUE_LLM_URL`）と `vlm_server`（`VLM_BACKEND_URL`）の両方が
+`http://localhost:8080/v1` を使う。初回は GGUF（約22GB）と mmproj を
+`~/.cache/huggingface` にダウンロードする:
+
+```
+docker run -d --name llm --restart unless-stopped --gpus all \
+  --user "$(id -u):$(id -g)" -e HF_HOME=/hf -v "$HOME/.cache/huggingface:/hf" \
+  -p 8080:8080 ghcr.io/ggml-org/llama.cpp:server-cuda13 \
+  -hf unsloth/Qwen3.6-35B-A3B-GGUF:UD-Q4_K_M --alias qwen3.6-35b-a3b \
+  --host 0.0.0.0 --port 8080 -ngl 999 -c 32768 --jinja --reasoning off
+```
+
+`curl localhost:8080/health` が `{"status":"ok"}` を返せば準備完了。
+展示PCなど別マシンから使う場合は、`DIALOGUE_LLM_URL=http://<このPCのIP>:8080/v1`
+とする。認証はないので、信頼できないネットワークに出す場合は `--api-key` を
+付けて `DIALOGUE_LLM_API_KEY` / `VLM_BACKEND_API_KEY` に同じ値を入れる。
 
 ## Test
 
@@ -232,7 +250,7 @@ sent by a client is ignored. Images are downscaled to `VLM_MAX_IMAGE_SIDE`
 and sent to an OpenAI-compatible multimodal backend with a JSON schema that
 forces a `yes`/`no` answer. `GET /health` checks the backend.
 
-The default backend is the Qwen3.6-35B-A3B pod (`one-box-rag-chat` service).
+The default backend is the local llama-server container (see "LLM" above).
 Set `VLM_BACKEND_URL` in `.env`, then:
 
 ```

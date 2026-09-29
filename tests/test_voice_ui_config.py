@@ -34,7 +34,7 @@ def test_defaults_when_env_not_set(monkeypatch):
     assert config.VAD_TRAILING_SILENCE_MS == 500.0
     assert config.VOICE_START_KEYWORDS == ["チェックイン"]
     assert config.DIALOGUE_ENABLED is True
-    assert config.DIALOGUE_LLM_URL == "http://10.43.10.179:8000/v1"
+    assert config.DIALOGUE_LLM_URL == "http://localhost:8080/v1"
     assert config.DIALOGUE_LLM_MODEL == "qwen3.6-35b-a3b"
     assert config.DIALOGUE_LLM_API_KEY is None
     assert config.DIALOGUE_LLM_TIMEOUT_SECONDS == 8.0

@@ -16,7 +16,7 @@ VOICE_START_KEYWORDS = [
     if keyword.strip()
 ]
 DIALOGUE_ENABLED = os.environ.get("DIALOGUE_ENABLED", "1") == "1"
-DIALOGUE_LLM_URL = os.environ.get("DIALOGUE_LLM_URL", "http://10.43.10.179:8000/v1")
+DIALOGUE_LLM_URL = os.environ.get("DIALOGUE_LLM_URL", "http://localhost:8080/v1")
 DIALOGUE_LLM_MODEL = os.environ.get("DIALOGUE_LLM_MODEL", "qwen3.6-35b-a3b")
 DIALOGUE_LLM_API_KEY = os.environ.get("DIALOGUE_LLM_API_KEY") or None
 DIALOGUE_LLM_TIMEOUT_SECONDS = float(os.environ.get("DIALOGUE_LLM_TIMEOUT_SECONDS", "8"))
