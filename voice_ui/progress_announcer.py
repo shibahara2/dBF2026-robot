@@ -1,4 +1,6 @@
-from .step_messages import STEP_MESSAGES
+from .step_messages import STEP_MESSAGES, VOICE_START_GUIDANCE
+
+_VOICE_START = ("voice", "start")
 
 
 class ProgressAnnouncer:
@@ -6,8 +8,18 @@ class ProgressAnnouncer:
         self._speak = speak
         self._last_step = None
         self._last_phase = None
+        self._last_entry = None
 
     def handle_snapshot(self, snapshot):
+        # Typed events (e.g. ui_action) are not state snapshots.
+        if "type" in snapshot:
+            return
+
+        entry = (snapshot.get("entry_source"), snapshot.get("entry_stage"))
+        if entry == _VOICE_START and self._last_entry != _VOICE_START:
+            self._speak(VOICE_START_GUIDANCE)
+        self._last_entry = entry
+
         phase = snapshot.get("phase")
         step = snapshot.get("step")
 

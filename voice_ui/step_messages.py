@@ -5,3 +5,5 @@ STEP_MESSAGES = {
     "polling_r2_active": "ドリンクを積み込み中です",
     "notifying_pf_placed": "積み込み完了をAI管制PFに通知しています",
 }
+
+VOICE_START_GUIDANCE = "画面にお名前、予約番号、または電話番号を入力してください"

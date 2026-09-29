@@ -66,3 +66,48 @@ def test_returning_to_waiting_after_error_allows_next_step_message():
     announcer.handle_snapshot({"phase": "waiting", "step": "polling_pf_ready"})
 
     assert spoken == ["失敗", "AI管制PF(案内ロボット)の状態を確認しています"]
+
+
+GUIDANCE = "画面にお名前、予約番号、または電話番号を入力してください"
+
+
+def _waiting(entry_source=None, entry_stage=None):
+    return {
+        "phase": "waiting",
+        "step": "awaiting_checkin",
+        "entry_source": entry_source,
+        "entry_stage": entry_stage,
+    }
+
+
+def test_speaks_guidance_when_voice_start_is_recorded():
+    spoken = []
+    announcer = ProgressAnnouncer(speak=spoken.append)
+
+    announcer.handle_snapshot(_waiting())
+    announcer.handle_snapshot(_waiting("voice", "start"))
+    announcer.handle_snapshot(_waiting("voice", "start"))
+
+    assert spoken == [GUIDANCE]
+
+
+def test_no_guidance_for_other_entries():
+    spoken = []
+    announcer = ProgressAnnouncer(speak=spoken.append)
+
+    announcer.handle_snapshot(_waiting("visual", "start"))
+    announcer.handle_snapshot(_waiting("screen", "start"))
+    announcer.handle_snapshot(_waiting("voice", "select"))
+
+    assert spoken == []
+
+
+def test_ui_action_events_do_not_reset_step_memory():
+    spoken = []
+    announcer = ProgressAnnouncer(speak=spoken.append)
+
+    announcer.handle_snapshot({"phase": "waiting", "step": "polling_pf_ready"})
+    announcer.handle_snapshot({"type": "ui_action", "action": "start_checkin"})
+    announcer.handle_snapshot({"phase": "waiting", "step": "polling_pf_ready"})
+
+    assert spoken == ["AI管制PF(案内ロボット)の状態を確認しています"]
