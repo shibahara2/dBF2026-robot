@@ -1,6 +1,8 @@
 import logging
 
-from voice_ui.pipeline import run_checkin_once
+from voice_ui.pipeline import run_start_once
+
+KEYWORDS = ["チェックイン"]
 
 
 class _FakeMicSource:
@@ -33,154 +35,88 @@ class _FakeTranscriber:
         return self._result
 
 
-class _FakeCheckinClient:
+class _FakeStartClient:
     def __init__(self, result="accepted"):
-        self.calls = []
+        self.calls = 0
         self._result = result
 
-    def checkin(self, name):
-        self.calls.append(name)
+    def start(self):
+        self.calls += 1
         return self._result
 
 
-def test_confident_transcription_triggers_checkin_with_extracted_name():
-    mic = _FakeMicSource([object()])
-    vad = _FakeVadSegmenter(utterance_after=1)
-    transcriber = _FakeTranscriber(("田中太郎です", 0.1, -0.2))
-    checkin_client = _FakeCheckinClient()
-
-    outcome = run_checkin_once(
-        mic,
-        vad,
-        transcriber,
-        checkin_client,
+def _run(transcription, start_client, chunks=(object(),), utterance_after=1):
+    return run_start_once(
+        _FakeMicSource(list(chunks)),
+        _FakeVadSegmenter(utterance_after=utterance_after),
+        _FakeTranscriber(transcription),
+        start_client,
+        KEYWORDS,
         no_speech_prob_max=0.6,
         avg_logprob_min=-1.0,
     )
 
-    assert outcome == "checked_in"
-    assert checkin_client.calls == ["田中太郎"]
+
+def test_keyword_utterance_requests_start():
+    start_client = _FakeStartClient()
+
+    assert _run(("チェックインお願いします", 0.1, -0.2), start_client) == "start_requested"
+    assert start_client.calls == 1
 
 
-def test_successful_checkin_logs_extracted_name_and_checkin_result(caplog):
-    mic = _FakeMicSource([object()])
-    vad = _FakeVadSegmenter(utterance_after=1)
-    transcriber = _FakeTranscriber(("田中太郎です", 0.1, -0.2))
-    checkin_client = _FakeCheckinClient()
-
-    with caplog.at_level(logging.INFO, logger="voice_ui.pipeline"):
-        outcome = run_checkin_once(
-            mic,
-            vad,
-            transcriber,
-            checkin_client,
-            no_speech_prob_max=0.6,
-            avg_logprob_min=-1.0,
-        )
-
-    assert outcome == "checked_in"
-    joined = "\n".join(record.message for record in caplog.records)
-    assert "田中太郎" in joined
-    assert "accepted" in joined
-
-
-def test_non_accepted_checkin_result_is_logged_even_though_outcome_stays_checked_in(caplog):
-    mic = _FakeMicSource([object()])
-    vad = _FakeVadSegmenter(utterance_after=1)
-    transcriber = _FakeTranscriber(("田中太郎です", 0.1, -0.2))
-    checkin_client = _FakeCheckinClient(result="already_in_progress")
+def test_utterance_without_keyword_is_ignored(caplog):
+    start_client = _FakeStartClient()
 
     with caplog.at_level(logging.INFO, logger="voice_ui.pipeline"):
-        outcome = run_checkin_once(
-            mic,
-            vad,
-            transcriber,
-            checkin_client,
-            no_speech_prob_max=0.6,
-            avg_logprob_min=-1.0,
-        )
+        outcome = _run(("田中太郎です", 0.1, -0.2), start_client)
 
-    # pipeline's own three-way outcome contract is unchanged...
-    assert outcome == "checked_in"
-    # ...but the actual checkin_client result is visible in the logs.
-    joined = "\n".join(record.message for record in caplog.records)
-    assert "already_in_progress" in joined
+    assert outcome == "no_keyword"
+    assert start_client.calls == 0
+    assert "田中太郎です" in caplog.text
 
 
-def test_low_confidence_transcription_is_rejected_without_checkin():
-    mic = _FakeMicSource([object()])
-    vad = _FakeVadSegmenter(utterance_after=1)
-    transcriber = _FakeTranscriber(("ノイズ", 0.9, -5.0))
-    checkin_client = _FakeCheckinClient()
+def test_start_result_is_logged_even_when_not_accepted(caplog):
+    start_client = _FakeStartClient(result="not_available")
 
-    outcome = run_checkin_once(
-        mic,
-        vad,
-        transcriber,
-        checkin_client,
-        no_speech_prob_max=0.6,
-        avg_logprob_min=-1.0,
-    )
+    with caplog.at_level(logging.INFO, logger="voice_ui.pipeline"):
+        outcome = _run(("チェックイン", 0.1, -0.2), start_client)
 
-    assert outcome == "rejected_low_confidence"
-    assert checkin_client.calls == []
+    assert outcome == "start_requested"
+    assert "not_available" in caplog.text
+
+
+def test_low_confidence_transcription_is_rejected_without_start():
+    start_client = _FakeStartClient()
+
+    assert _run(("チェックイン", 0.9, -5.0), start_client) == "rejected_low_confidence"
+    assert start_client.calls == 0
 
 
 def test_low_confidence_rejection_logs_text_and_confidence_scores(caplog):
-    mic = _FakeMicSource([object()])
-    vad = _FakeVadSegmenter(utterance_after=1)
-    transcriber = _FakeTranscriber(("ノイズ", 0.9, -5.0))
-    checkin_client = _FakeCheckinClient()
-
     with caplog.at_level(logging.INFO, logger="voice_ui.pipeline"):
-        run_checkin_once(
-            mic,
-            vad,
-            transcriber,
-            checkin_client,
-            no_speech_prob_max=0.6,
-            avg_logprob_min=-1.0,
-        )
+        _run(("ノイズ", 0.9, -5.0), _FakeStartClient())
 
-    joined = "\n".join(record.message for record in caplog.records)
-    assert "ノイズ" in joined
-    assert "0.9" in joined
-    assert "-5.0" in joined
+    assert "ノイズ" in caplog.text
+    assert "0.9" in caplog.text
+    assert "-5.0" in caplog.text
 
 
-def test_no_chunk_available_returns_without_calling_transcriber():
-    mic = _FakeMicSource([])
-    vad = _FakeVadSegmenter(utterance_after=1)
-    transcriber = _FakeTranscriber(("unused", 0.0, 0.0))
-    checkin_client = _FakeCheckinClient()
+def test_no_chunk_available_returns_without_start():
+    start_client = _FakeStartClient()
 
-    outcome = run_checkin_once(
-        mic,
-        vad,
-        transcriber,
-        checkin_client,
-        no_speech_prob_max=0.6,
-        avg_logprob_min=-1.0,
-    )
-
-    assert outcome == "no_utterance"
-    assert checkin_client.calls == []
+    assert _run(("unused", 0.0, 0.0), start_client, chunks=()) == "no_utterance"
+    assert start_client.calls == 0
 
 
 def test_multiple_chunks_are_fed_until_utterance_completes():
-    mic = _FakeMicSource([object(), object(), object()])
-    vad = _FakeVadSegmenter(utterance_after=3)
-    transcriber = _FakeTranscriber(("田中太郎です", 0.1, -0.2))
-    checkin_client = _FakeCheckinClient()
+    start_client = _FakeStartClient()
 
-    outcome = run_checkin_once(
-        mic,
-        vad,
-        transcriber,
-        checkin_client,
-        no_speech_prob_max=0.6,
-        avg_logprob_min=-1.0,
+    outcome = _run(
+        ("チェックイン", 0.1, -0.2),
+        start_client,
+        chunks=(object(), object(), object()),
+        utterance_after=3,
     )
 
-    assert outcome == "checked_in"
-    assert checkin_client.calls == ["田中太郎"]
+    assert outcome == "start_requested"
+    assert start_client.calls == 1

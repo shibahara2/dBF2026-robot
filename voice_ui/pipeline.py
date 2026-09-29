@@ -1,16 +1,17 @@
 import logging
 
-from .name_extract import extract_name
+from .start_keyword import contains_start_keyword
 from .stt import is_confident
 
 logger = logging.getLogger(__name__)
 
 
-def run_checkin_once(
+def run_start_once(
     mic_source,
     vad_segmenter,
     transcriber,
-    checkin_client,
+    start_client,
+    start_keywords,
     no_speech_prob_max,
     avg_logprob_min,
     read_timeout=1.0,
@@ -35,8 +36,10 @@ def run_checkin_once(
         )
         return "rejected_low_confidence"
 
-    name = extract_name(text)
-    logger.info("抽出された名前でチェックインを実行します: name=%r", name)
-    checkin_result = checkin_client.checkin(name)
-    logger.info("checkin_clientの結果: %s (name=%r)", checkin_result, name)
-    return "checked_in"
+    if not contains_start_keyword(text, start_keywords):
+        logger.info("開始キーワードを含まない発話を無視しました: text=%r", text)
+        return "no_keyword"
+
+    result = start_client.start()
+    logger.info("チェックイン開始を依頼しました: result=%s text=%r", result, text)
+    return "start_requested"

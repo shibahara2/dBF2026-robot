@@ -3,11 +3,11 @@ import threading
 import time
 
 from . import config
-from .checkin_client import CheckinClient
 from .mic import SounddeviceMicSource
-from .pipeline import run_checkin_once
+from .pipeline import run_start_once
 from .progress_announcer import ProgressAnnouncer
 from .speaker import SounddeviceSpeakerSink
+from .start_client import VoiceStartClient
 from .sse_events import iter_sse_events
 from .stt import WhisperTranscriber
 from .tts import VoicevoxSpeaker
@@ -60,16 +60,17 @@ def run_checkin_loop(
     mic_source,
     vad_segmenter,
     transcriber,
-    checkin_client,
+    start_client,
     no_utterance_exit_threshold=NO_UTTERANCE_EXIT_THRESHOLD,
 ):
     def _outcomes():
         while True:
-            yield run_checkin_once(
+            yield run_start_once(
                 mic_source,
                 vad_segmenter,
                 transcriber,
-                checkin_client,
+                start_client,
+                config.VOICE_START_KEYWORDS,
                 no_speech_prob_max=config.STT_NO_SPEECH_PROB_MAX,
                 avg_logprob_min=config.STT_AVG_LOGPROB_MIN,
             )
@@ -117,7 +118,7 @@ def run_progress_loop(
 
 
 def main():
-    checkin_client = CheckinClient(base_url=config.FLASK_BASE_URL)
+    start_client = VoiceStartClient(base_url=config.FLASK_BASE_URL)
 
     mic_source = SounddeviceMicSource(sample_rate=16000)
 
@@ -146,7 +147,7 @@ def main():
     # replayed through VAD/Whisper the moment the loop starts.
     mic_source.start()
 
-    run_checkin_loop(mic_source, vad_segmenter, transcriber, checkin_client)
+    run_checkin_loop(mic_source, vad_segmenter, transcriber, start_client)
 
 
 if __name__ == "__main__":

@@ -10,6 +10,7 @@ def test_defaults_when_env_not_set(monkeypatch):
     monkeypatch.delenv("STT_NO_SPEECH_PROB_MAX", raising=False)
     monkeypatch.delenv("STT_AVG_LOGPROB_MIN", raising=False)
     monkeypatch.delenv("VAD_TRAILING_SILENCE_MS", raising=False)
+    monkeypatch.delenv("VOICE_START_KEYWORDS", raising=False)
 
     from voice_ui import config
     importlib.reload(config)
@@ -22,6 +23,7 @@ def test_defaults_when_env_not_set(monkeypatch):
     assert config.STT_NO_SPEECH_PROB_MAX == 0.6
     assert config.STT_AVG_LOGPROB_MIN == -1.0
     assert config.VAD_TRAILING_SILENCE_MS == 500.0
+    assert config.VOICE_START_KEYWORDS == ["チェックイン"]
 
 
 def test_env_overrides(monkeypatch):
@@ -33,6 +35,7 @@ def test_env_overrides(monkeypatch):
     monkeypatch.setenv("STT_NO_SPEECH_PROB_MAX", "0.7")
     monkeypatch.setenv("STT_AVG_LOGPROB_MIN", "-0.8")
     monkeypatch.setenv("VAD_TRAILING_SILENCE_MS", "300")
+    monkeypatch.setenv("VOICE_START_KEYWORDS", "チェックイン, check in ,")
 
     from voice_ui import config
     importlib.reload(config)
@@ -45,3 +48,4 @@ def test_env_overrides(monkeypatch):
     assert config.STT_NO_SPEECH_PROB_MAX == 0.7
     assert config.STT_AVG_LOGPROB_MIN == -0.8
     assert config.VAD_TRAILING_SILENCE_MS == 300.0
+    assert config.VOICE_START_KEYWORDS == ["チェックイン", "check in"]

@@ -8,3 +8,8 @@ WHISPER_FP16 = os.environ.get("WHISPER_FP16", "1") == "1"
 STT_NO_SPEECH_PROB_MAX = float(os.environ.get("STT_NO_SPEECH_PROB_MAX", "0.6"))
 STT_AVG_LOGPROB_MIN = float(os.environ.get("STT_AVG_LOGPROB_MIN", "-1.0"))
 VAD_TRAILING_SILENCE_MS = float(os.environ.get("VAD_TRAILING_SILENCE_MS", "500"))
+VOICE_START_KEYWORDS = [
+    keyword.strip()
+    for keyword in os.environ.get("VOICE_START_KEYWORDS", "チェックイン").split(",")
+    if keyword.strip()
+]
