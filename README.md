@@ -130,6 +130,51 @@ docker run -d --name llm --restart unless-stopped --gpus all \
 とする。認証はないので、信頼できないネットワークに出す場合は `--api-key` を
 付けて `DIALOGUE_LLM_API_KEY` / `VLM_BACKEND_API_KEY` に同じ値を入れる。
 
+## 展示PCで音声IFだけ動かす（サーバーと分離）
+
+ゲストの前に置く展示PC（サーバーと同じ DGX Spark）で音声IFとキオスク画面を
+動かし、Flaskアプリ（:5100）とLLM（:8080）はサーバーに残す構成。通信は
+すべて展示PCからサーバーへ向かう（サーバー側の IP は例として
+`192.168.11.16`）。
+
+**サーバー側**: モックとFlaskアプリ（`run_mocks.py` / `run.py`）とLLMを起動する。
+`python -m voice_ui.main` は**起動しない**。両方で動かすと音声での開始が
+二重に届き、`/debug` の音声対話ログも混ざる。
+
+**展示PC側**:
+
+```
+# 1. 取得とインストール（DGX Spark なので requirements.txt のままでよい）
+git clone git@github.com:shibahara2/dBF2026-robot.git && cd dBF2026-robot
+uv venv .venv && uv pip install -r requirements.txt --python .venv/bin/python
+
+# 2. VOICEVOX（上の「音声IF」と同じコマンド）
+docker run -d --name voicevox -p 127.0.0.1:50021:50021 --cpuset-cpus=5-9,15-19 \
+  voicevox/voicevox_engine:cpu-ubuntu22.04-latest \
+  gosu user /opt/voicevox_engine/run --host 0.0.0.0 --cpu_num_threads 10
+
+# 3. サーバーに届くか確認
+curl http://192.168.11.16:5100/               # キオスク画面
+curl http://192.168.11.16:8080/health         # LLM: {"status":"ok"}
+curl -N http://192.168.11.16:5100/api/events  # 15秒ごとに ": keepalive" が届く
+
+# 4. 起動
+FLASK_BASE_URL=http://192.168.11.16:5100 \
+DIALOGUE_LLM_URL=http://192.168.11.16:8080/v1 \
+.venv/bin/python -m voice_ui.main
+```
+
+その後、展示PCのブラウザで `http://192.168.11.16:5100/` を開く。
+
+- voice_ui は `.env` を読まないので、接続先は上のように環境変数で渡す。
+- マイクとスピーカーは OS の既定デバイスが使われる。サウンド設定か
+  `pactl set-default-source` / `pactl set-default-sink` で使う機器を既定にする。
+- 初回起動時に Whisper の `large-v3`（約3GB）を `~/.cache/whisper` に
+  ダウンロードするので、会場に出る前に一度起動しておく。
+- `/api/events` は無通信が15秒続くとキープアライブのコメントを送り、
+  voice_ui は45秒何も届かなければ再接続する。途中に NAT や VPN があっても
+  接続が止まったままにならない。
+
 ## Test
 
 GPU環境（`requirements.txt`）では、コア機能と音声IFを含む全テストを実行します:
