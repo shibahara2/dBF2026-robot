@@ -77,3 +77,29 @@ def test_stream_unsubscribes_broadcaster_on_client_disconnect():
 
     assert len(broadcaster.subscribed) == 1
     assert broadcaster.unsubscribed == [broadcaster.subscribed[0]]
+
+
+class IdleBroadcaster(FakeBroadcaster):
+    def subscribe(self):
+        import queue
+
+        q = queue.Queue()
+        self.subscribed.append(q)
+        return q
+
+
+def test_stream_sends_keepalive_comment_when_idle():
+    app = Flask(__name__)
+    app.config["EVENT_BROADCASTER"] = IdleBroadcaster()
+    app.config["STATE_MACHINE"] = FakeStateMachine()
+    app.config["SSE_KEEPALIVE_SECONDS"] = 0.01
+    app.register_blueprint(events_bp)
+    client = app.test_client()
+
+    resp = client.get("/api/events")
+    body_iter = iter(resp.response)
+
+    next(body_iter)  # initial snapshot
+    assert next(body_iter).decode("utf-8") == ": keepalive\n\n"
+
+    resp.close()
