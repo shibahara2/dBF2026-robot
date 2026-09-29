@@ -44,6 +44,26 @@
       </div>
     </div>
 
+    <h2 class="section-label">チェックイン入口（最終更新: <span id="entry-at">-</span>）</h2>
+    <div id="entry-panel">
+      <div class="entry-column">
+        <div class="entry-column-title">チェックイン開始</div>
+        <div class="entry-box entry-start" id="entry-start-screen" data-source="screen">画面操作：開始ボタン</div>
+        <div class="entry-box entry-start" id="entry-start-visual" data-source="visual">画像：VLM検知</div>
+        <div class="entry-box entry-start" id="entry-start-voice" data-source="voice">発話：発話検知</div>
+      </div>
+      <div class="entry-arrow">→</div>
+      <div class="entry-column">
+        <div class="entry-column-title">&nbsp;</div>
+        <div class="entry-box entry-stage" id="entry-stage-select" data-stage="select">予約選択</div>
+      </div>
+      <div class="entry-arrow">→</div>
+      <div class="entry-column">
+        <div class="entry-column-title">&nbsp;</div>
+        <div class="entry-box entry-stage" id="entry-stage-checkin" data-stage="checkin">チェックイン完了</div>
+      </div>
+    </div>
+
     <h2 class="section-label">シーケンス図（実行中ステップをハイライト）</h2>
     <div id="sequence-diagram">
       <svg id="sequence-svg" viewBox="0 0 800 560" xmlns="http://www.w3.org/2000/svg">

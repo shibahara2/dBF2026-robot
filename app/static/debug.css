@@ -163,3 +163,52 @@ body {
   stroke: #b00020;
   color: #b00020;
 }
+
+#entry-panel {
+  display: flex;
+  align-items: flex-end;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  padding: 0.75rem 1rem;
+  margin-bottom: 1rem;
+}
+
+.entry-column {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.entry-column-title {
+  font-size: 0.8rem;
+  font-weight: bold;
+  color: #666;
+}
+
+.entry-box {
+  border: 1px solid #ddd;
+  border-radius: 999px;
+  padding: 0.2rem 0.75rem;
+  font-size: 0.85rem;
+  color: #999;
+  white-space: nowrap;
+}
+
+.entry-box.done {
+  border-color: #1a73e8;
+  color: #1a73e8;
+}
+
+.entry-box.active {
+  background: #1a73e8;
+  border-color: #1a73e8;
+  color: #fff;
+  font-weight: bold;
+}
+
+.entry-arrow {
+  color: #bbb;
+  padding-bottom: 0.2rem;
+}

@@ -29,6 +29,27 @@ const r2StatusValue = document.getElementById("r2-status-value");
 const r2StatusAt = document.getElementById("r2-status-at");
 const currentTime = document.getElementById("current-time");
 
+const ENTRY_ORDER = ["start", "select", "checkin"];
+const entryAt = document.getElementById("entry-at");
+const entryStarts = document.querySelectorAll(".entry-start");
+const entryStages = document.querySelectorAll(".entry-stage");
+
+function renderEntry(snapshot) {
+  entryAt.textContent = toSecondsTime(snapshot.entry_at);
+  // -1 when no entry is recorded, so nothing is highlighted.
+  const reached = ENTRY_ORDER.indexOf(snapshot.entry_stage);
+  entryStarts.forEach((el) => {
+    const isSource = el.dataset.source === snapshot.entry_source;
+    el.classList.toggle("active", isSource && reached === 0);
+    el.classList.toggle("done", isSource && reached > 0);
+  });
+  entryStages.forEach((el) => {
+    const index = ENTRY_ORDER.indexOf(el.dataset.stage);
+    el.classList.toggle("active", index === reached);
+    el.classList.toggle("done", index < reached);
+  });
+}
+
 function toSecondsTime(isoString) {
   if (!isoString) {
     return "-";
@@ -43,6 +64,8 @@ function toSecondsTime(isoString) {
 }
 
 function render(snapshot) {
+  renderEntry(snapshot);
+
   statusPhase.textContent = snapshot.phase;
   statusStep.textContent = snapshot.step;
   statusGuest.textContent = snapshot.guest_name || "-";

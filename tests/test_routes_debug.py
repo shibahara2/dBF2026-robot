@@ -96,3 +96,29 @@ def test_debug_clock_formats_times_in_tokyo_timezone():
     source = debug_js.read_text()
 
     assert 'timeZone: "Asia/Tokyo"' in source
+
+
+def test_debug_page_has_entry_panel():
+    resp = make_client().get("/debug")
+
+    for element_id in [
+        "entry-panel",
+        "entry-at",
+        "entry-start-screen",
+        "entry-start-visual",
+        "entry-start-voice",
+        "entry-stage-select",
+        "entry-stage-checkin",
+    ]:
+        assert f'id="{element_id}"'.encode() in resp.data
+    text = resp.data.decode()
+    for label in ["開始ボタン", "VLM検知", "発話検知", "予約選択", "チェックイン完了"]:
+        assert label in text
+
+
+def test_debug_js_renders_entry_fields():
+    source = (Path(__file__).parents[1] / "app" / "static" / "debug.js").read_text()
+
+    assert 'const ENTRY_ORDER = ["start", "select", "checkin"];' in source
+    for field in ["entry_source", "entry_stage", "entry_at"]:
+        assert f"snapshot.{field}" in source
