@@ -295,3 +295,200 @@ def test_pf_and_r2_get_status_are_recorded_with_timestamps():
     assert final["pf_status_at"] is not None
     assert final["r2_status"] == "completed"
     assert final["r2_status_at"] is not None
+
+
+# --- check-in entry tracking -------------------------------------------------
+
+
+class FakeClock:
+    def __init__(self, value=1000.0):
+        self.value = value
+
+    def __call__(self):
+        return self.value
+
+
+def _entry_state_machine(changes=None, clock=None, idle=60.0):
+    r2 = FakeR2Client(
+        [
+            {"outcome": "completed", "request_id": "none"},
+            {"outcome": "completed", "request_id": "RID"},
+        ]
+    )
+    sm = StateMachine(
+        r2_client=r2,
+        pf_client=FakePFClient(["ready"]),
+        on_change=(changes if changes is not None else []).append,
+        sleep=lambda s: None,
+        request_id_factory=lambda: "RID",
+        now=lambda: "2026-09-29T00:00:00Z",
+        monotonic=clock or FakeClock(),
+        entry_idle_seconds=idle,
+    )
+    return sm
+
+
+def _entry(sm):
+    snap = sm.snapshot()
+    return snap["entry_source"], snap["entry_stage"], snap["entry_at"]
+
+
+def test_snapshot_starts_without_entry():
+    assert _entry(_entry_state_machine()) == (None, None, None)
+
+
+def test_external_start_records_start_stage_and_publishes():
+    changes = []
+    sm = _entry_state_machine(changes)
+
+    assert sm.start_external_entry("visual") is True
+
+    assert _entry(sm) == ("visual", "start", "2026-09-29T00:00:00Z")
+    assert changes[-1] == sm.snapshot()
+
+
+def test_external_start_rejects_screen_source():
+    sm = _entry_state_machine()
+
+    try:
+        sm.start_external_entry("screen")
+    except ValueError:
+        return
+    raise AssertionError("screen is not an external source")
+
+
+def test_external_start_rejected_while_entry_in_progress():
+    sm = _entry_state_machine()
+    sm.record_kiosk_stage("select")
+
+    assert sm.external_start_available() is False
+    assert sm.start_external_entry("voice") is False
+    assert _entry(sm)[:2] == ("screen", "select")
+
+
+def test_external_start_accepted_after_entry_idle_seconds():
+    clock = FakeClock(1000.0)
+    sm = _entry_state_machine(clock=clock, idle=60.0)
+    sm.record_kiosk_stage("start")
+
+    clock.value = 1059.9
+    assert sm.start_external_entry("visual") is False
+    clock.value = 1060.0
+    assert sm.start_external_entry("visual") is True
+    assert _entry(sm)[:2] == ("visual", "start")
+
+
+def test_external_start_rejected_while_cycle_in_progress():
+    sm = _entry_state_machine()
+    sm.try_start("田中太郎")
+
+    assert sm.external_start_available() is False
+    assert sm.start_external_entry("visual") is False
+
+
+def test_kiosk_stage_without_entry_is_screen():
+    sm = _entry_state_machine()
+
+    assert sm.record_kiosk_stage("start") is True
+
+    assert _entry(sm)[:2] == ("screen", "start")
+
+
+def test_kiosk_stage_keeps_external_source_even_after_idle_seconds():
+    clock = FakeClock(1000.0)
+    sm = _entry_state_machine(clock=clock, idle=60.0)
+    sm.start_external_entry("voice")
+
+    clock.value = 1500.0
+    sm.record_kiosk_stage("select")
+
+    assert _entry(sm)[:2] == ("voice", "select")
+
+
+def test_back_to_search_returns_select_to_start_keeping_source():
+    sm = _entry_state_machine()
+    sm.start_external_entry("visual")
+    sm.record_kiosk_stage("select")
+
+    sm.record_kiosk_stage("start")
+
+    assert _entry(sm)[:2] == ("visual", "start")
+
+
+def test_kiosk_stage_rejects_unknown_stage():
+    sm = _entry_state_machine()
+
+    for stage in ["checkin", "search", None]:
+        try:
+            sm.record_kiosk_stage(stage)
+        except ValueError:
+            continue
+        raise AssertionError(f"{stage!r} should be rejected")
+
+
+def test_kiosk_stage_ignored_while_cycle_in_progress():
+    sm = _entry_state_machine()
+    sm.try_start("田中太郎")
+
+    assert sm.record_kiosk_stage("start") is False
+    assert _entry(sm)[:2] == ("screen", "checkin")
+
+
+def test_try_start_records_checkin_with_inherited_source():
+    sm = _entry_state_machine()
+    sm.start_external_entry("visual")
+    sm.record_kiosk_stage("select")
+
+    sm.try_start("田中太郎")
+
+    assert _entry(sm)[:2] == ("visual", "checkin")
+
+
+def test_try_start_without_entry_records_screen_checkin():
+    sm = _entry_state_machine()
+
+    sm.try_start("田中太郎")
+
+    assert _entry(sm)[:2] == ("screen", "checkin")
+
+
+def test_clear_entry_forgets_any_source():
+    changes = []
+    sm = _entry_state_machine(changes)
+    sm.start_external_entry("voice")
+
+    assert sm.clear_entry() is True
+
+    assert _entry(sm) == (None, None, None)
+    assert changes[-1] == sm.snapshot()
+
+
+def test_clear_entry_without_entry_returns_false():
+    assert _entry_state_machine().clear_entry() is False
+
+
+def test_clear_entry_ignored_while_cycle_in_progress():
+    sm = _entry_state_machine()
+    sm.try_start("田中太郎")
+
+    assert sm.clear_entry() is False
+    assert _entry(sm)[:2] == ("screen", "checkin")
+
+
+def test_entry_cleared_when_cycle_returns_to_awaiting_checkin():
+    sm = _entry_state_machine()
+    sm.try_start("田中太郎")
+
+    sm.run_started_cycle()
+
+    assert sm.snapshot()["step"] == STEP_AWAITING_CHECKIN
+    assert _entry(sm) == (None, None, None)
+
+
+def test_entry_cleared_on_reset_from_error():
+    sm = _entry_state_machine()
+    sm.try_start("田中太郎")
+    sm.fail_unexpected("boom")
+
+    assert sm.try_reset() is True
+    assert _entry(sm) == (None, None, None)

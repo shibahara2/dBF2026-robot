@@ -14,6 +14,20 @@ STEP_SENDING_LOAD_DRINK = "sending_load_drink"
 STEP_POLLING_R2_ACTIVE = "polling_r2_active"
 STEP_NOTIFYING_PF_PLACED = "notifying_pf_placed"
 
+# How a check-in was initiated and how far it got (see
+# docs/superpowers/specs/2026-09-29-checkin-entry-design.md).
+ENTRY_SCREEN = "screen"
+ENTRY_VISUAL = "visual"
+ENTRY_VOICE = "voice"
+EXTERNAL_ENTRY_SOURCES = (ENTRY_VISUAL, ENTRY_VOICE)
+
+ENTRY_STAGE_START = "start"
+ENTRY_STAGE_SELECT = "select"
+ENTRY_STAGE_CHECKIN = "checkin"
+KIOSK_ENTRY_STAGES = (ENTRY_STAGE_START, ENTRY_STAGE_SELECT)
+
+DEFAULT_ENTRY_IDLE_SECONDS = 60.0
+
 
 def default_request_id():
     now = datetime.now(timezone.utc)
@@ -35,6 +49,8 @@ class StateMachine:
         request_id_factory=default_request_id,
         now=default_now,
         sequence_wait=1.0,
+        monotonic=time.monotonic,
+        entry_idle_seconds=DEFAULT_ENTRY_IDLE_SECONDS,
     ):
         self._r2 = r2_client
         self._pf = pf_client
@@ -44,6 +60,8 @@ class StateMachine:
         self._sequence_wait = sequence_wait
         self._request_id_factory = request_id_factory
         self._now = now
+        self._monotonic = monotonic
+        self._entry_idle_seconds = entry_idle_seconds
 
         self._lock = threading.Lock()
         self._phase = PHASE_WAITING
@@ -55,6 +73,10 @@ class StateMachine:
         self._pf_status_at = None
         self._r2_status = None
         self._r2_status_at = None
+        self._entry_source = None
+        self._entry_stage = None
+        self._entry_at = None
+        self._entry_touched = None
 
     def snapshot(self):
         with self._lock:
@@ -71,6 +93,9 @@ class StateMachine:
             "pf_status_at": self._pf_status_at,
             "r2_status": self._r2_status,
             "r2_status_at": self._r2_status_at,
+            "entry_source": self._entry_source,
+            "entry_stage": self._entry_stage,
+            "entry_at": self._entry_at,
         }
 
     def _record_pf_status(self, status):
@@ -86,15 +111,80 @@ class StateMachine:
             snap = self._snapshot_locked()
             self._on_change(snap)
 
+    def _awaiting_checkin_locked(self):
+        return self._phase == PHASE_WAITING and self._step == STEP_AWAITING_CHECKIN
+
+    def _entry_in_progress_locked(self):
+        return self._entry_stage in KIOSK_ENTRY_STAGES
+
+    def _kiosk_source_locked(self):
+        if self._entry_in_progress_locked():
+            return self._entry_source
+        return ENTRY_SCREEN
+
+    def _set_entry_locked(self, source, stage):
+        self._entry_source = source
+        self._entry_stage = stage
+        self._entry_at = self._now()
+        self._entry_touched = self._monotonic()
+
+    def _external_start_available_locked(self):
+        if not self._awaiting_checkin_locked():
+            return False
+        if not self._entry_in_progress_locked():
+            return True
+        # An abandoned kiosk must not block visual/voice starts forever.
+        return self._monotonic() - self._entry_touched >= self._entry_idle_seconds
+
+    def external_start_available(self):
+        with self._lock:
+            return self._external_start_available_locked()
+
+    def start_external_entry(self, source):
+        """Record a visual/voice start unless someone is using the kiosk."""
+        if source not in EXTERNAL_ENTRY_SOURCES:
+            raise ValueError(f"unknown external entry source: {source!r}")
+        with self._lock:
+            if not self._external_start_available_locked():
+                return False
+            self._set_entry_locked(source, ENTRY_STAGE_START)
+            self._on_change(self._snapshot_locked())
+        return True
+
+    def record_kiosk_stage(self, stage):
+        """Record a kiosk stage, keeping the source of an entry in progress."""
+        if stage not in KIOSK_ENTRY_STAGES:
+            raise ValueError(f"unknown kiosk entry stage: {stage!r}")
+        with self._lock:
+            if not self._awaiting_checkin_locked():
+                return False
+            self._set_entry_locked(self._kiosk_source_locked(), stage)
+            self._on_change(self._snapshot_locked())
+        return True
+
+    def clear_entry(self):
+        """Forget the entry when the kiosk goes back to its start screen."""
+        with self._lock:
+            if not (self._awaiting_checkin_locked() and self._entry_source is not None):
+                return False
+            self._entry_source = None
+            self._entry_stage = None
+            self._entry_at = None
+            self._entry_touched = None
+            self._on_change(self._snapshot_locked())
+        return True
+
     def try_start(self, guest_name):
         with self._lock:
-            if not (self._phase == PHASE_WAITING and self._step == STEP_AWAITING_CHECKIN):
+            if not self._awaiting_checkin_locked():
                 return False
+            source = self._kiosk_source_locked()
             self._phase = PHASE_WAITING
             self._step = STEP_POLLING_PF_READY
             self._guest_name = guest_name
             self._request_id = None
             self._error_message = None
+            self._set_entry_locked(source, ENTRY_STAGE_CHECKIN)
             snap = self._snapshot_locked()
             self._on_change(snap)
         return True
@@ -113,6 +203,10 @@ class StateMachine:
             guest_name=None,
             request_id=None,
             error_message=None,
+            entry_source=None,
+            entry_stage=None,
+            entry_at=None,
+            entry_touched=None,
         )
 
     def _fail(self, message):
