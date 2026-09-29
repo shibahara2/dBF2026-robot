@@ -2,10 +2,15 @@
 
 from __future__ import annotations
 
+import logging
 import time
 from collections import deque
 
 import requests
+
+
+logger = logging.getLogger(__name__)
+_NOT_ACCEPTED = (409, 429)
 
 
 class VisualTriggerError(RuntimeError):
@@ -60,6 +65,15 @@ class VisualConversationPipeline:
 
         try:
             response = self.session.post(self.trigger_url, json={}, timeout=self.timeout)
+        except requests.RequestException as exc:
+            raise VisualTriggerError("visual start trigger failed") from exc
+        if response.status_code in _NOT_ACCEPTED:
+            # Expected while a cycle runs or someone is using the kiosk: stay
+            # armed but wait out the cooldown instead of posting every frame.
+            logger.info("visual start not accepted: HTTP %d", response.status_code)
+            self._last_triggered = now
+            return False
+        try:
             response.raise_for_status()
         except requests.RequestException as exc:
             raise VisualTriggerError("visual start trigger failed") from exc
