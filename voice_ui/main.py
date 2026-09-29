@@ -1,10 +1,13 @@
 import logging
 import threading
 import time
+from pathlib import Path
 
 from . import config
+from .dialogue import DialogueAgent
+from .llm_client import DialogueLLMClient
 from .mic import SounddeviceMicSource
-from .pipeline import run_start_once
+from .pipeline import run_turn_once
 from .progress_announcer import ProgressAnnouncer
 from .speaker import SounddeviceSpeakerSink
 from .sse_events import iter_sse_events
@@ -12,6 +15,7 @@ from .start_client import VoiceStartClient
 from .step_messages import PRELOAD_TEXTS
 from .stt import WhisperTranscriber
 from .tts import VoicevoxSpeaker
+from .turn_reporter import TurnReporter
 from .vad_segmenter import SileroVadSegmenter
 
 logging.basicConfig(level=logging.INFO)
@@ -62,16 +66,22 @@ def run_checkin_loop(
     vad_segmenter,
     transcriber,
     start_client,
+    speaker,
+    turn_reporter,
+    dialogue_agent,
     no_utterance_exit_threshold=NO_UTTERANCE_EXIT_THRESHOLD,
 ):
     def _outcomes():
         while True:
-            yield run_start_once(
+            yield run_turn_once(
                 mic_source,
                 vad_segmenter,
                 transcriber,
                 start_client,
+                speaker,
+                turn_reporter,
                 config.VOICE_START_KEYWORDS,
+                dialogue_agent,
                 no_speech_prob_max=config.STT_NO_SPEECH_PROB_MAX,
                 avg_logprob_min=config.STT_AVG_LOGPROB_MIN,
             )
@@ -120,6 +130,21 @@ def run_progress_loop(
 
 def main():
     start_client = VoiceStartClient(base_url=config.FLASK_BASE_URL)
+    turn_reporter = TurnReporter(base_url=config.FLASK_BASE_URL)
+    dialogue_agent = None
+    if config.DIALOGUE_ENABLED:
+        hotel_info = Path(config.HOTEL_INFO_FILE).read_text(encoding="utf-8")
+        dialogue_agent = DialogueAgent(
+            DialogueLLMClient(
+                config.DIALOGUE_LLM_URL,
+                config.DIALOGUE_LLM_MODEL,
+                api_key=config.DIALOGUE_LLM_API_KEY,
+                timeout=config.DIALOGUE_LLM_TIMEOUT_SECONDS,
+            ),
+            hotel_info,
+            history_turns=config.DIALOGUE_HISTORY_TURNS,
+            idle_reset_seconds=config.DIALOGUE_IDLE_RESET_SECONDS,
+        )
 
     mic_source = SounddeviceMicSource(sample_rate=16000)
 
@@ -133,7 +158,11 @@ def main():
     )
 
     speaker_sink = SounddeviceSpeakerSink()
-    speaker = VoicevoxSpeaker(base_url=config.VOICEVOX_URL, output_sink=speaker_sink)
+    speaker = VoicevoxSpeaker(
+        base_url=config.VOICEVOX_URL,
+        output_sink=speaker_sink,
+        echo_guard_seconds=config.ECHO_GUARD_SECONDS,
+    )
     speaker.start()
     speaker.preload(PRELOAD_TEXTS)
 
@@ -149,7 +178,15 @@ def main():
     # replayed through VAD/Whisper the moment the loop starts.
     mic_source.start()
 
-    run_checkin_loop(mic_source, vad_segmenter, transcriber, start_client)
+    run_checkin_loop(
+        mic_source,
+        vad_segmenter,
+        transcriber,
+        start_client,
+        speaker,
+        turn_reporter,
+        dialogue_agent,
+    )
 
 
 if __name__ == "__main__":
