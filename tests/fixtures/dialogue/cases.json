@@ -1,0 +1,18 @@
+[
+  {"text": "チェックインお願いします", "intent": "checkin"},
+  {"text": "予約してるんですけど", "intent": "checkin"},
+  {"text": "今日泊まる田中です", "intent": "checkin"},
+  {"text": "部屋に入りたいんですが", "intent": "checkin"},
+  {"text": "朝ごはんは何時からですか", "intent": "chat"},
+  {"text": "Wi-Fiのパスワードってどこにありますか", "intent": "chat"},
+  {"text": "チェックアウトは何時までですか", "intent": "chat"},
+  {"text": "近くにコンビニありますか", "intent": "chat"},
+  {"text": "大浴場は何時まで入れますか", "intent": "chat"},
+  {"text": "こんにちは", "intent": "chat"},
+  {"text": "今日は暑いですね", "intent": "chat"},
+  {"text": "ロボットさん、お名前は", "intent": "chat"},
+  {"text": "それでさあ、昨日の会議どうだった", "intent": "ignore"},
+  {"text": "ちょっと待ってて、トイレ行ってくる", "intent": "ignore"},
+  {"text": "えーと", "intent": "ignore"},
+  {"text": "明日の新幹線何時だっけ", "intent": "ignore"}
+]
