@@ -64,6 +64,19 @@
       </div>
     </div>
 
+    <h2 class="section-label">音声対話ログ（新しい順・最大20件）</h2>
+    <div id="voice-turn-panel">
+      <table>
+        <thead>
+          <tr>
+            <th>時刻</th><th>書き起こし</th><th>判定</th><th>返事</th>
+            <th>no_speech</th><th>logprob</th><th>STT(ms)</th><th>LLM(ms)</th>
+          </tr>
+        </thead>
+        <tbody id="voice-turn-rows"></tbody>
+      </table>
+    </div>
+
     <h2 class="section-label">シーケンス図（実行中ステップをハイライト）</h2>
     <div id="sequence-diagram">
       <svg id="sequence-svg" viewBox="0 0 800 560" xmlns="http://www.w3.org/2000/svg">

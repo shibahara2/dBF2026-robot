@@ -125,11 +125,28 @@ def test_debug_js_renders_entry_fields():
         assert f"snapshot.{field}" in source
 
 
-def test_debug_js_ignores_typed_events():
-    # ui_action events are not snapshots; rendering them would blank the page.
+def test_debug_js_handles_voice_turns_and_skips_other_typed_events():
     source = (Path(__file__).parents[1] / "app" / "static" / "debug.js").read_text()
 
     assert re.search(
-        r"const payload = JSON\.parse\(event\.data\);(?:\s*//[^\n]*)*\s*if \(payload\.type\) \{\s*return;\s*\}\s*render\(payload\);",
+        r"if \(payload\.type\) \{\s*if \(payload\.type === \"voice_turn\"\) \{\s*addVoiceTurn\(payload\);\s*\}\s*return;\s*\}\s*render\(payload\);",
         source,
     )
+
+
+def test_debug_page_has_voice_turn_panel():
+    resp = make_client().get("/debug")
+
+    assert b'id="voice-turn-panel"' in resp.data
+    assert b'id="voice-turn-rows"' in resp.data
+    for label in ["時刻", "書き起こし", "判定", "返事", "STT(ms)", "LLM(ms)"]:
+        assert label in resp.data.decode()
+
+
+def test_debug_js_loads_recent_voice_turns_and_escapes_text():
+    source = (Path(__file__).parents[1] / "app" / "static" / "debug.js").read_text()
+
+    assert 'fetch("/api/voice/turns")' in source
+    assert "const MAX_VOICE_TURNS = 20;" in source
+    # Transcripts come from a microphone; never inject them as HTML.
+    assert "innerHTML" not in source

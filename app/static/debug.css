@@ -212,3 +212,38 @@ body {
   color: #bbb;
   padding-bottom: 0.2rem;
 }
+
+#voice-turn-panel {
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  margin-bottom: 1rem;
+  overflow-x: auto;
+}
+
+#voice-turn-panel table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.8rem;
+}
+
+#voice-turn-panel th,
+#voice-turn-panel td {
+  border-bottom: 1px solid #eee;
+  padding: 0.25rem 0.5rem;
+  text-align: left;
+  vertical-align: top;
+}
+
+.voice-turn.outcome-chat td:nth-child(3),
+.voice-turn.outcome-checkin td:nth-child(3),
+.voice-turn.outcome-keyword_start td:nth-child(3) {
+  color: #1a73e8;
+  font-weight: bold;
+}
+
+.voice-turn.outcome-ignore,
+.voice-turn.outcome-self_echo,
+.voice-turn.outcome-rejected_low_confidence,
+.voice-turn.outcome-no_keyword {
+  color: #999;
+}

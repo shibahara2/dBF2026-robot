@@ -34,6 +34,47 @@ const entryAt = document.getElementById("entry-at");
 const entryStarts = document.querySelectorAll(".entry-start");
 const entryStages = document.querySelectorAll(".entry-stage");
 
+const MAX_VOICE_TURNS = 20;
+const voiceTurnRows = document.getElementById("voice-turn-rows");
+
+function formatNumber(value, digits) {
+  return typeof value === "number" ? value.toFixed(digits) : "-";
+}
+
+function voiceTurnRow(turn) {
+  const row = document.createElement("tr");
+  row.className = "voice-turn outcome-" + turn.outcome;
+  [
+    toSecondsTime(turn.at),
+    turn.text,
+    turn.outcome,
+    turn.reply || "",
+    formatNumber(turn.no_speech_prob, 2),
+    formatNumber(turn.avg_logprob, 2),
+    turn.stt_ms ?? "-",
+    turn.llm_ms ?? "-",
+  ].forEach((value) => {
+    const cell = document.createElement("td");
+    cell.textContent = String(value);
+    row.append(cell);
+  });
+  return row;
+}
+
+function addVoiceTurn(turn) {
+  voiceTurnRows.prepend(voiceTurnRow(turn));
+  while (voiceTurnRows.children.length > MAX_VOICE_TURNS) {
+    voiceTurnRows.lastElementChild.remove();
+  }
+}
+
+fetch("/api/voice/turns")
+  .then((resp) => resp.json())
+  .then((data) => {
+    voiceTurnRows.replaceChildren(...(data.turns || []).map(voiceTurnRow));
+  })
+  .catch(() => {});
+
 function renderEntry(snapshot) {
   entryAt.textContent = toSecondsTime(snapshot.entry_at);
   // -1 when no entry is recorded, so nothing is highlighted.
@@ -109,6 +150,9 @@ eventSource.onmessage = (event) => {
   const payload = JSON.parse(event.data);
   // Typed events (e.g. ui_action) are not state snapshots.
   if (payload.type) {
+    if (payload.type === "voice_turn") {
+      addVoiceTurn(payload);
+    }
     return;
   }
   render(payload);
