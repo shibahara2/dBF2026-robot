@@ -8,7 +8,7 @@ from .clients.r2_client import R2Client
 from .routes.checkin import checkin_bp
 from .routes.events import events_bp
 from .routes.ui import ui_bp
-from .routes.visual import visual_bp
+from .routes.external_start import external_start_bp
 from .reservations import ReservationStore
 from .sse import EventBroadcaster
 from .state_machine import StateMachine, StateMachineRunner
@@ -40,6 +40,7 @@ def create_app(r2_client=None, pf_client=None, reservation_store=None):
         pf_client=pf_client,
         on_change=broadcaster.publish,
         poll_interval=config.POLL_INTERVAL_SECONDS,
+        entry_idle_seconds=config.ENTRY_IDLE_SECONDS,
     )
     runner = StateMachineRunner(state_machine)
 
@@ -54,7 +55,7 @@ def create_app(r2_client=None, pf_client=None, reservation_store=None):
     app.register_blueprint(checkin_bp)
     app.register_blueprint(events_bp)
     app.register_blueprint(ui_bp)
-    app.register_blueprint(visual_bp)
+    app.register_blueprint(external_start_bp)
 
     thread = threading.Thread(target=runner.run_forever, daemon=True)
     thread.start()

@@ -118,3 +118,28 @@ def test_index_route_served_through_app_factory():
 
     assert client.get("/static/app.js").status_code == 200
     assert client.get("/static/style.css").status_code == 200
+
+
+def test_voice_start_blocked_while_kiosk_user_is_selecting():
+    app = create_app(r2_client=FakeR2Client(), pf_client=FakePFClient())
+    client = app.test_client()
+    state_machine = app.config["STATE_MACHINE"]
+
+    assert client.post("/api/visual/start", json={}).status_code == 202
+    state_machine.record_kiosk_stage("select")
+
+    assert client.post("/api/voice/start", json={}).status_code == 409
+    snap = state_machine.snapshot()
+    assert (snap["entry_source"], snap["entry_stage"]) == ("visual", "select")
+
+
+def test_entry_idle_seconds_comes_from_config(monkeypatch):
+    from app import config
+
+    monkeypatch.setattr(config, "ENTRY_IDLE_SECONDS", 0.0)
+    app = create_app(r2_client=FakeR2Client(), pf_client=FakePFClient())
+    client = app.test_client()
+    app.config["STATE_MACHINE"].record_kiosk_stage("start")
+
+    # With no idle window, an abandoned kiosk entry never blocks a start.
+    assert client.post("/api/voice/start", json={}).status_code == 202

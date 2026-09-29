@@ -22,6 +22,7 @@ THEMIS_VIDEO_SETTINGS = load_settings()
 VISUAL_START_COOLDOWN_SECONDS = float(
     os.environ.get("VISUAL_START_COOLDOWN_SECONDS", "5")
 )
+ENTRY_IDLE_SECONDS = float(os.environ.get("ENTRY_IDLE_SECONDS", "60"))
 RESERVATIONS_FILE = os.environ.get(
     "RESERVATIONS_FILE", os.path.join(_PROJECT_ROOT, "data", "reservations.json")
 )

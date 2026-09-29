@@ -83,6 +83,9 @@ def test_video_yes_decision_starts_search_without_checkin(caplog):
         )
         video.start()
 
+        entry_snapshot = subscriber.get(timeout=10)
+        assert entry_snapshot["entry_source"] == "visual"
+        assert entry_snapshot["entry_stage"] == "start"
         assert subscriber.get(timeout=10) == {
             "type": "ui_action",
             "action": "start_checkin",
