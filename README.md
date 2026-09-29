@@ -90,6 +90,28 @@ VOICEVOXエンジン（`http://127.0.0.1:50021`）が別途起動している必
 設定可能な環境変数は`voice_ui/config.py`を参照。詳細は
 `docs/superpowers/specs/2026-09-13-voice-ui-design.md`を参照。
 
+### 音声対話（フロント雑談）
+
+「チェックイン」を含む発話はすぐにキオスクを検索画面にする。それ以外の
+発話は LLM（既定は Qwen3.6 pod、`DIALOGUE_LLM_URL`）が判定し、
+チェックインの意図なら同じく検索画面へ、フロントへの質問・雑談なら
+返事を読み上げ、宛てでない会話には黙る。ホテルの事実は
+`data/hotel_info.md`（デモ用の架空ホテル）に基づいて答える。
+`DIALOGUE_ENABLED=0` でキーワードだけの動作に戻る。会話は `/debug` の
+「音声対話ログ」で確認できる。判定精度は `python -m tools.dialogue_eval`
+で評価できる。
+
+雑談の返事はその場で合成するため、VOICEVOX（CPU版）は性能コアに固定して
+起動することを推奨する（GB10 の例）:
+
+```
+docker run -d --name voicevox -p 127.0.0.1:50021:50021 --cpuset-cpus=5-9,15-19 \
+  voicevox/voicevox_engine:cpu-ubuntu22.04-latest \
+  gosu user /opt/voicevox_engine/run --host 0.0.0.0 --cpu_num_threads 10
+```
+
+固定しないと1文の合成が2〜9秒ぶれることを計測で確認している。
+
 ## Test
 
 GPU環境（`requirements.txt`）では、コア機能と音声IFを含む全テストを実行します:
