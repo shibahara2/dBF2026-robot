@@ -172,3 +172,13 @@ def test_back_to_start_clears_visual_entry():
 
     assert resp.get_json() == {"cleared": True}
     assert app.config["STATE_MACHINE"].snapshot()["entry_source"] is None
+
+
+def test_voice_turns_are_wired_into_app_factory():
+    app = create_app(r2_client=FakeR2Client(), pf_client=FakePFClient())
+    client = app.test_client()
+
+    assert client.post(
+        "/api/voice/turns", json={"text": "こんにちは", "outcome": "chat", "reply": "こんにちは。"}
+    ).status_code == 202
+    assert client.get("/api/voice/turns").get_json()["turns"][0]["text"] == "こんにちは"

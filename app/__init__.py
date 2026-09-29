@@ -9,10 +9,12 @@ from .routes.checkin import checkin_bp
 from .routes.entry import entry_bp
 from .routes.events import events_bp
 from .routes.ui import ui_bp
+from .routes.voice_turns import voice_turns_bp
 from .routes.external_start import external_start_bp
 from .reservations import ReservationStore
 from .sse import EventBroadcaster
 from .state_machine import StateMachine, StateMachineRunner
+from .voice_turns import VoiceTurnLog
 
 
 def create_app(r2_client=None, pf_client=None, reservation_store=None):
@@ -49,6 +51,7 @@ def create_app(r2_client=None, pf_client=None, reservation_store=None):
     app.config["STATE_MACHINE"] = state_machine
     app.config["STATE_MACHINE_RUNNER"] = runner
     app.config["RESERVATION_STORE"] = reservation_store
+    app.config["VOICE_TURN_LOG"] = VoiceTurnLog()
     app.config["VISUAL_START_COOLDOWN_SECONDS"] = float(
         config.VISUAL_START_COOLDOWN_SECONDS
     )
@@ -58,6 +61,7 @@ def create_app(r2_client=None, pf_client=None, reservation_store=None):
     app.register_blueprint(events_bp)
     app.register_blueprint(ui_bp)
     app.register_blueprint(external_start_bp)
+    app.register_blueprint(voice_turns_bp)
 
     thread = threading.Thread(target=runner.run_forever, daemon=True)
     thread.start()
