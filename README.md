@@ -75,7 +75,8 @@ GPU環境では、上記のモックとFlaskアプリに加えて、音声IFを�
 
 ## 音声IF (voice_ui) の起動 (GPU環境のみ)
 
-マイク・スピーカーが接続された端末で、名前の音声チェックインと進行状況の
+マイク・スピーカーが接続された端末で、音声によるチェックイン開始
+（「チェックイン」を含む発話でキオスクを検索画面にする）と進行状況の
 読み上げを行う場合は、上記のFlaskアプリ起動に加えて以下を別ターミナルで
 起動します:
 
@@ -158,6 +159,24 @@ When the external VLM detects that someone is speaking to Themis, it can call
 existing search screen; it does not start check-in or submit a name. The user
 then enters their name, reservation number, or phone number and continues
 through the existing reservation flow.
+
+### Check-in entries
+
+Check-in always follows the kiosk sequence: start → reservation select →
+check-in. The kiosk's start button, the VLM (`POST /api/visual/start`) and
+voice (`POST /api/voice/start`) only differ in how "start" is detected; all of
+them open the kiosk search screen, and the guest searches, selects and confirms
+on screen. `POST /api/checkin` requires `reservation_id`.
+
+Visual and voice starts return 409 while a cycle runs or while someone is using
+the kiosk (an entry at start/select). An entry idle for `ENTRY_IDLE_SECONDS`
+(default 60) no longer blocks them.
+
+`voice_ui` calls `/api/voice/start` when a confident utterance contains one of
+`VOICE_START_KEYWORDS` (comma separated, default `チェックイン`), then reads out
+the on-screen input guidance.
+
+`/debug` shows the current entry and stage live.
 
 For local end-to-end testing, run the existing Flask app, the VLM mock, and
 the Themis WebSocket mock in separate terminals.
