@@ -254,7 +254,11 @@ const eventSource = new EventSource("/api/events");
 eventSource.onmessage = (event) => {
   const payload = JSON.parse(event.data);
   if (payload.type === "ui_action" && payload.action === "start_checkin") {
-    showStage("search");
+    // Only leave the start screen; a guest already searching or selecting
+    // (e.g. in front of the camera) must not lose their progress.
+    if (!stages.start.hidden) {
+      showStage("search");
+    }
     return;
   }
   render(payload);

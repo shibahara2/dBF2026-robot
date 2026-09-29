@@ -38,3 +38,12 @@ def test_back_buttons_report_or_clear():
     assert re.search(
         r'showStage\(button\.dataset\.target\);\s*reportEntry\("start"\);', APP_JS
     )
+
+
+def test_start_checkin_action_only_leaves_the_start_screen():
+    # A visual/voice start must not pull a guest who is already searching or
+    # selecting back to the search screen (their selection would be lost).
+    assert re.search(
+        r'payload\.action === "start_checkin"\) \{(?:\s*//[^\n]*)*\s*if \(!stages\.start\.hidden\) \{\s*showStage\("search"\);\s*\}\s*return;',
+        APP_JS,
+    )

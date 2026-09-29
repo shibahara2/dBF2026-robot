@@ -1,3 +1,4 @@
+import re
 from flask import Flask
 from pathlib import Path
 
@@ -122,3 +123,13 @@ def test_debug_js_renders_entry_fields():
     assert 'const ENTRY_ORDER = ["start", "select", "checkin"];' in source
     for field in ["entry_source", "entry_stage", "entry_at"]:
         assert f"snapshot.{field}" in source
+
+
+def test_debug_js_ignores_typed_events():
+    # ui_action events are not snapshots; rendering them would blank the page.
+    source = (Path(__file__).parents[1] / "app" / "static" / "debug.js").read_text()
+
+    assert re.search(
+        r"const payload = JSON\.parse\(event\.data\);(?:\s*//[^\n]*)*\s*if \(payload\.type\) \{\s*return;\s*\}\s*render\(payload\);",
+        source,
+    )

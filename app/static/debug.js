@@ -106,7 +106,12 @@ function render(snapshot) {
 
 const eventSource = new EventSource("/api/events");
 eventSource.onmessage = (event) => {
-  render(JSON.parse(event.data));
+  const payload = JSON.parse(event.data);
+  // Typed events (e.g. ui_action) are not state snapshots.
+  if (payload.type) {
+    return;
+  }
+  render(payload);
 };
 
 function tickClock() {
