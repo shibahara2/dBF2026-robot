@@ -42,13 +42,13 @@ def test_checkin_then_events_reflect_state_machine_progress():
     client = app.test_client()
     state_machine = app.config["STATE_MACHINE"]
 
-    resp = client.post("/api/checkin", json={"name": "Tanaka"})
+    resp = client.post("/api/checkin", json={"reservation_id": "RSV-0001"})
     assert resp.status_code == 200
 
     events_resp = client.get("/api/events")
     first_chunk = next(iter(events_resp.response)).decode("utf-8")
     payload = json.loads(first_chunk[len("data: "):].strip())
-    assert payload["guest_name"] in ("Tanaka", None)
+    assert payload["guest_name"] in ("田中太郎", None)
     events_resp.close()
 
     # Prove the cycle actually completes successfully back to
@@ -68,10 +68,10 @@ def test_second_checkin_is_rejected_immediately_after_first():
     app = create_app(r2_client=FakeR2Client(), pf_client=FakePFClient())
     client = app.test_client()
 
-    first = client.post("/api/checkin", json={"name": "Tanaka"})
+    first = client.post("/api/checkin", json={"reservation_id": "RSV-0001"})
     assert first.status_code == 200
 
-    second = client.post("/api/checkin", json={"name": "Suzuki"})
+    second = client.post("/api/checkin", json={"reservation_id": "RSV-0003"})
     assert second.status_code in (200, 409)
 
 
@@ -143,3 +143,32 @@ def test_entry_idle_seconds_comes_from_config(monkeypatch):
 
     # With no idle window, an abandoned kiosk entry never blocks a start.
     assert client.post("/api/voice/start", json={}).status_code == 202
+
+
+def test_kiosk_flow_records_entry_through_checkin():
+    app = create_app(r2_client=FakeR2Client(), pf_client=FakePFClient())
+    client = app.test_client()
+    state_machine = app.config["STATE_MACHINE"]
+
+    def entry():
+        snap = state_machine.snapshot()
+        return snap["entry_source"], snap["entry_stage"]
+
+    assert client.post("/api/entry", json={"stage": "start"}).status_code == 202
+    assert entry() == ("screen", "start")
+    assert client.post("/api/entry", json={"stage": "select"}).status_code == 202
+    assert entry() == ("screen", "select")
+    assert client.post("/api/checkin", json={"reservation_id": "RSV-0001"}).status_code == 200
+    assert entry()[1] == "checkin"
+    assert wait_until(lambda: entry() == (None, None), timeout=8.0)
+
+
+def test_back_to_start_clears_visual_entry():
+    app = create_app(r2_client=FakeR2Client(), pf_client=FakePFClient())
+    client = app.test_client()
+
+    client.post("/api/visual/start", json={})
+    resp = client.delete("/api/entry")
+
+    assert resp.get_json() == {"cleared": True}
+    assert app.config["STATE_MACHINE"].snapshot()["entry_source"] is None

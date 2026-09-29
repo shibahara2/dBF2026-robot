@@ -51,17 +51,9 @@ def checkin():
     runner = current_app.config["STATE_MACHINE_RUNNER"]
     body = request.get_json(silent=True) or {}
     reservation_id = body.get("reservation_id")
-
-    if reservation_id:
-        return _checkin_by_reservation(runner, reservation_id)
-
-    # Name-only check-in, kept for voice_ui and any client without a reservation.
-    name = body.get("name")
-    if not name:
-        return jsonify({"message": "name or reservation_id is required"}), 422
-    if not runner.request_checkin(name):
-        return jsonify({"message": "a cycle is already in progress"}), 409
-    return jsonify({"message": "checkin accepted"}), 200
+    if not reservation_id:
+        return jsonify({"message": "reservation_id is required"}), 422
+    return _checkin_by_reservation(runner, reservation_id)
 
 
 def _checkin_by_reservation(runner, reservation_id):
