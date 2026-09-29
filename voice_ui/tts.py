@@ -1,5 +1,7 @@
 import io
 import logging
+import queue
+import re
 import threading
 import time
 import wave
@@ -40,6 +42,13 @@ def synthesize_speech(text, base_url, speaker_id=_DEFAULT_SPEAKER_ID, speed_scal
     return waveform, sample_rate, channels
 
 
+_SENTENCE_END = re.compile(r"(?<=[。！？!?])")
+
+
+def split_sentences(text):
+    return [part.strip() for part in _SENTENCE_END.split(text) if part.strip()]
+
+
 def _probe_voicevox(base_url, attempts=10, timeout=10.0):
     last_err = None
     for _ in range(attempts):
@@ -54,6 +63,8 @@ def _probe_voicevox(base_url, attempts=10, timeout=10.0):
 
 
 class VoicevoxSpeaker:
+    """Speaks text sentence by sentence; synthesis runs ahead of playback."""
+
     def __init__(
         self,
         base_url,
@@ -61,21 +72,32 @@ class VoicevoxSpeaker:
         speaker_id=_DEFAULT_SPEAKER_ID,
         speed_scale=1.0,
         synthesize=synthesize_speech,
+        echo_guard_seconds=0.5,
+        clock=time.monotonic,
     ):
         self._base_url = base_url
         self._output_sink = output_sink
         self._speaker_id = speaker_id
         self._speed_scale = speed_scale
         self._synthesize = synthesize
+        self._echo_guard_seconds = echo_guard_seconds
+        self._clock = clock
         self._cache = {}
-        self._queue = []
+        self._texts = queue.Queue()
+        self._audio = queue.Queue()
         self._lock = threading.Lock()
+        self._playing = False
+        self._last_played_at = None
         self._running = True
-        self._thread = threading.Thread(target=self._run, daemon=True)
+        self._threads = [
+            threading.Thread(target=self._loop, args=(self._synth_once,), daemon=True),
+            threading.Thread(target=self._loop, args=(self._play_once,), daemon=True),
+        ]
 
     def start(self):
         _probe_voicevox(self._base_url)
-        self._thread.start()
+        for thread in self._threads:
+            thread.start()
 
     def preload(self, texts):
         """Synthesize fixed phrases up front; failures fall back to on-demand."""
@@ -89,37 +111,56 @@ class VoicevoxSpeaker:
         logger.info("音声を事前合成しました: %d/%d件", len(self._cache), len(texts))
 
     def speak(self, text):
-        if not text.strip():
-            return
+        for sentence in split_sentences(text):
+            self._texts.put(sentence)
+
+    def is_busy(self):
+        """True while playing and for a short tail, so the mic ignores our own voice."""
         with self._lock:
-            self._queue.append(text)
+            if self._playing:
+                return True
+            if self._last_played_at is None:
+                return False
+            return self._clock() - self._last_played_at < self._echo_guard_seconds
 
     def stop(self):
         self._running = False
-        self._thread.join(timeout=2.0)
+        for thread in self._threads:
+            if thread.is_alive():
+                thread.join(timeout=2.0)
 
-    def _run(self):
+    def _loop(self, step):
         while self._running:
-            text = None
-            with self._lock:
-                if self._queue:
-                    text = self._queue.pop(0)
-            if text is None:
-                time.sleep(0.05)
-                continue
-            try:
-                self._play(text)
-            except Exception:  # noqa: BLE001 - keep the speak loop alive across failures
-                logger.warning(
-                    "音声合成/出力に失敗しました。text=%r", text, exc_info=True
-                )
-                continue
+            step(timeout=0.05)
 
-    def _play(self, text):
-        audio = self._cache.get(text)
-        if audio is None:
-            audio = self._synthesize(
+    def _synth_once(self, timeout=0.0):
+        try:
+            text = self._texts.get(timeout=timeout) if timeout else self._texts.get_nowait()
+        except queue.Empty:
+            return False
+        try:
+            audio = self._cache.get(text) or self._synthesize(
                 text, self._base_url, self._speaker_id, self._speed_scale
             )
-        waveform, sample_rate, channels = audio
-        self._output_sink.write(waveform, sample_rate, channels)
+        except Exception:  # noqa: BLE001 - keep speaking the remaining sentences
+            logger.warning("音声合成に失敗しました。text=%r", text, exc_info=True)
+            return True
+        self._audio.put(audio)
+        return True
+
+    def _play_once(self, timeout=0.0):
+        try:
+            audio = self._audio.get(timeout=timeout) if timeout else self._audio.get_nowait()
+        except queue.Empty:
+            return False
+        with self._lock:
+            self._playing = True
+        try:
+            self._output_sink.write(*audio)
+        except Exception:  # noqa: BLE001 - keep the playback loop alive
+            logger.warning("音声の再生に失敗しました。", exc_info=True)
+        finally:
+            with self._lock:
+                self._playing = False
+                self._last_played_at = self._clock()
+        return True
