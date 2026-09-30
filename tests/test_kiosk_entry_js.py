@@ -47,3 +47,12 @@ def test_start_checkin_action_only_leaves_the_start_screen():
         r'payload\.action === "start_checkin"\) \{(?:\s*//[^\n]*)*\s*if \(!stages\.start\.hidden\) \{\s*showStage\("search"\);\s*\}\s*return;',
         APP_JS,
     )
+
+
+def test_typed_events_are_not_rendered_as_snapshots():
+    # A voice_turn event (e.g. an ignored utterance) has no step; rendering it
+    # as a snapshot showed "他の方が対応中" on an idle kiosk.
+    assert re.search(
+        r'\}\s*return;\s*\}(?:\s*//[^\n]*)*\s*if \(payload\.type\) \{\s*return;\s*\}\s*render\(payload\);',
+        APP_JS,
+    )

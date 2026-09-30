@@ -261,5 +261,9 @@ eventSource.onmessage = (event) => {
     }
     return;
   }
+  // Other typed events (e.g. voice_turn) are not state snapshots.
+  if (payload.type) {
+    return;
+  }
   render(payload);
 };
