@@ -83,6 +83,25 @@ def test_get_guide_robot_status_initializing():
 
 
 @responses.activate
+def test_get_guide_robot_status_initialising_british_spelling():
+    # Shape returned by the real stg PF (reception.robility-system-stg.com).
+    responses.add(
+        responses.GET,
+        "http://pf.test/api/v1/guide-robot/status",
+        json={
+            "status": "Initialising",
+            "location": "unknown",
+            "yaw_deg": None,
+            "initialising": False,
+            "guidance": "idle",
+            "ts": "2026-10-03T11:45:12.796152+09:00",
+        },
+        status=200,
+    )
+    assert make_client().get_guide_robot_status() == "initializing"
+
+
+@responses.activate
 def test_get_guide_robot_status_422_is_retryable():
     responses.add(
         responses.GET,

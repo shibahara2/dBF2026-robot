@@ -37,7 +37,8 @@ class PFClient:
 
         if status == "Ready":
             return "ready"
-        if status == "Initializing":
+        # The real PF spells it "Initialising"; the mock and spec use "Initializing".
+        if status in ("Initializing", "Initialising"):
             return "initializing"
         return "fatal_error"
 
