@@ -57,7 +57,8 @@ Mock servers stand in for the real AI管制PF/R2/Themis systems during
 development:
 
 ```
-python run_mocks.py   # starts the R2 mock on :5001 and the PF mock on :5002
+python run_mocks.py   # starts the PF mock on :5002 and the Themis WebSocket mock on :9002
+                      # (R2 /realtime and video /zed2i share the port, like the real robot)
 python run.py          # starts this app on :5100
 ```
 
@@ -175,6 +176,52 @@ DIALOGUE_LLM_URL=http://192.168.11.16:8080/v1 \
   voice_ui は45秒何も届かなければ再接続する。途中に NAT や VPN があっても
   接続が止まったままにならない。
 
+## R2 (THEMIS) への接続
+
+R2 は、ロボットの gamepad-server（`ws://192.168.0.11:9002/realtime`）に WebSocket で
+つないで、このアプリ（Flask）が直接操作する。送るものと受け取ったものの解釈は、
+ロボットのベンダーの操作パネル UI-DRP と同じ（詳細は
+`docs/superpowers/specs/2026-10-03-r2-websocket-design.md`）。UI-DRP は使わない。
+UI-DRP と同時に R2 につながないこと。
+
+R2 には、ロボットの AP「THEMIS_5G」につながっている展示PC（spark-60c9）からしか
+届かない。spark-60c9 で 9002 番を転送し、サーバー（spark-3a50）からは
+`R2_WS_URL=ws://10.17.4.171:9002/realtime` でつなぐ。ロボット側の設定は変えない。
+
+**spark-60c9 での設定**（sudo が必要。`<有線IF>` は 10.17.4.171 を持つインターフェース名）：
+
+```
+sudo sysctl -w net.ipv4.ip_forward=1
+sudo iptables -t nat -A PREROUTING -i <有線IF> -s 10.17.2.171 -p tcp --dport 9002 \
+  -j DNAT --to-destination 192.168.0.11:9002
+sudo iptables -t nat -A POSTROUTING -o wlP9s9 -d 192.168.0.11 -p tcp --dport 9002 -j MASQUERADE
+sudo iptables -A FORWARD -s 10.17.2.171 -d 192.168.0.11 -p tcp --dport 9002 -j ACCEPT
+sudo iptables -A FORWARD -s 192.168.0.11 -d 10.17.2.171 -m state --state ESTABLISHED,RELATED -j ACCEPT
+```
+
+- ufw が有効なので、ufw の FORWARD ポリシーで止まらないか確かめる。
+- 再起動後も残すには、`net.ipv4.ip_forward=1` を `/etc/sysctl.d/` に書き、iptables の
+  ルールを `iptables-persistent`（`netfilter-persistent save`）で保存する。
+- ロボットの電源が切れると Wi-Fi が Robotbank に切り替わる。THEMIS_5G を優先して
+  自動でつなぎ直すよう NetworkManager の優先度を設定する。
+- 映像（`THEMIS_WS_URL`）も同じ 9002 番なので、`ws://10.17.4.171:9002/zed2i` で届く。
+- `/realtime` には認証がなく、ロボットの停止や関節の操作も受け付ける。転送する相手を
+  spark-3a50 だけに絞っておくこと。
+
+**確認**：spark-3a50 で `.venv/bin/python -c "import websocket; websocket.create_connection('ws://10.17.4.171:9002/realtime', timeout=5).close(); print('ok')"`
+
+**運用上の注意**
+
+- R2 の status（`completed` / `loading` / `returning` / `failed`）はこのアプリの中に
+  しかない。**R2 の動作中に Flask を再起動しない**（再起動すると `completed` に戻る）。
+- `/debug` の R2 パネルで、接続状態、status、`under_mode`、開始の返事を確認できる。
+  - STOP：R2 をその場で止めて `failed` にする。R2 を手で A に戻してから
+    「R2 を初期状態に戻す」→「ステートマシンをリセット」。
+  - 開始の返事が来なかったとき：R2 が A にいる（`under_mode` が `_m1`）なら
+    「開始を再送」で続きから進める。
+- R2 が未接続のあいだ、チェックインは `waiting_r2_ready`（R2 の待機確認）で待ち続ける。
+  エラーにはならず、ステートマシンのリセットでも抜けられない。R2 につながると先へ進む。
+
 ## Test
 
 GPU環境（`requirements.txt`）では、コア機能と音声IFを含む全テストを実行します:
@@ -202,16 +249,17 @@ pytest -q \
 
 | Variable | Default | Purpose |
 |---|---|---|
-| `R2_BASE_URL` | `http://localhost:5001` | Base URL of the R2/Themis drink-serving robot system |
+| `R2_WS_URL` | `ws://127.0.0.1:9002/realtime` | R2's gamepad-server `/realtime` (on site: spark-60c9's forwarded port) |
+| `R2_START_REPLY_TIMEOUT_SECONDS` | `15` | Seconds to wait for R2's reply to `play_navigation5` before failing |
+| `R2_WS_RECONNECT_DELAY_SECONDS` | `1` | Seconds before reconnecting to R2 |
+| `R2_WS_CONNECT_TIMEOUT_SECONDS` | `5` | Timeout of the WebSocket handshake with R2 |
+| `R2_MOCK_STEP_SECONDS` | `3` | (mock only) seconds per `under_mode` step of the `/realtime` mock |
+| `R2_MOCK_START_REPLY` | `success` | (mock only) `success`, `fail`, or `none` as the reply to `play_navigation5` |
 | `PF_BASE_URL` | `http://localhost:5002` | Base URL of the AI管制PF (guide robot control plane) |
 | `PF_API_KEY` | unset | `X-API-Key` sent to the AI管制PF; the local mock accepts any non-empty value |
 | `PF_PROXY_URL` | unset | Optional proxy URL used for PF requests |
 | `POLL_INTERVAL_SECONDS` | `2` | Seconds between status polls while waiting on R2/PF |
 | `HTTP_TIMEOUT_SECONDS` | `5` | Per-request HTTP timeout for calls to R2/PF |
-| `DRINK_TYPE` | `water` | `drink_type` sent in R2's load-drink command |
-| `TARGET_ROBOT_ID` | `temi` | `target_robot_id` sent in R2's load-drink command |
-| `R2_MOCK_RETURNING_SECONDS` | `3` | (mock only) seconds the R2 mock spends in `returning` |
-| `R2_MOCK_FORCE_FAILURE` | unset | (mock only) `422`, `500`, or `failed` to force that R2 mock response |
 | `PF_MOCK_INITIALIZING_SECONDS` | `0` | (mock only) seconds the PF mock reports `Initializing` before `Ready` |
 | `PF_MOCK_ACCEPTED` | `true` | (mock only) set to `false` to make the PF mock reject `drink/placed` |
 | `PF_MOCK_FORCE_FAILURE` | unset | (mock only) `422` or `500` to force that PF mock response from `guide-robot/status` |
@@ -265,8 +313,7 @@ the on-screen input guidance.
 
 `/debug` shows the current entry and stage live.
 
-For local end-to-end testing, run the existing Flask app, the VLM mock, and
-the Themis WebSocket mock in separate terminals.
+For local end-to-end testing, run the existing Flask app, `run_mocks.py` (which serves the Themis WebSocket mock on :9002), and the VLM mock in separate terminals.
 
 The WebSocket mock repeatedly sends the repository's `person.png` as a PNG
 image at the configured interval (0.5 seconds by default).
@@ -277,7 +324,6 @@ Set `THEMIS_VLM_MODE=mock` in `.env` (the example file uses this mode), then:
 
 ```
 VLM_MOCK_DECISION=true .venv/bin/python -m mocks.vlm_mock
-.venv/bin/python -m mocks.themis_video_mock
 .venv/bin/python tools/run_themis_vlm.py
 ```
 
@@ -334,7 +380,7 @@ the format first.
 ## Switching to the real systems
 
 Cutting over from the mocks to the real AI管制PF/R2/Themis systems requires
-no code changes — point `R2_BASE_URL` and `PF_BASE_URL` at their real URLs and
+no code changes — point `R2_WS_URL` (see "R2 (THEMIS) への接続") and `PF_BASE_URL` at their real URLs and
 set the PF API key in the runtime environment:
 
 ```
