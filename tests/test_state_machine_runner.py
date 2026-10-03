@@ -130,3 +130,36 @@ def test_request_reset_rejected_when_not_in_error():
     )
     runner = StateMachineRunner(sm)
     assert runner.request_reset() is False
+
+
+def test_request_skip_load_drink_resumes_a_failed_cycle_on_the_thread():
+    r2 = FakeR2Client(
+        status_sequence=[
+            {"outcome": "completed", "request_id": "none"},
+            {"outcome": "completed", "request_id": "OLD"},
+        ],
+        load_drink_result="server_error",
+    )
+    pf = FakePFClient(["ready"])
+    sm = StateMachine(r2_client=r2, pf_client=pf, on_change=lambda snap: None, sleep=lambda s: None)
+    runner = StateMachineRunner(sm)
+    start_runner_thread(runner)
+
+    runner.request_checkin("Tanaka")
+    assert wait_until(lambda: sm.snapshot()["phase"] == "error")
+
+    assert runner.request_skip_load_drink() is True
+    assert wait_until(
+        lambda: sm.snapshot()["phase"] == PHASE_WAITING
+        and sm.snapshot()["step"] == STEP_AWAITING_CHECKIN
+    )
+
+
+def test_request_skip_load_drink_rejected_when_idle():
+    sm = StateMachine(
+        r2_client=FakeR2Client([{"outcome": "completed", "request_id": "none"}]),
+        pf_client=FakePFClient(["ready"]),
+        on_change=lambda snap: None,
+    )
+    runner = StateMachineRunner(sm)
+    assert runner.request_skip_load_drink() is False

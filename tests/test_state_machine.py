@@ -4,6 +4,8 @@ from app.state_machine import (
     PHASE_ACTIVE,
     PHASE_ERROR,
     STEP_AWAITING_CHECKIN,
+    SKIP_PENDING,
+    SKIP_RESUME,
 )
 
 
@@ -492,3 +494,85 @@ def test_entry_cleared_on_reset_from_error():
 
     assert sm.try_reset() is True
     assert _entry(sm) == (None, None, None)
+
+
+def test_skip_load_drink_is_rejected_outside_sending_load_drink():
+    sm = make_state_machine(
+        FakeR2Client([{"outcome": "completed", "request_id": "none"}]), FakePFClient(["ready"]), [], []
+    )
+
+    assert sm.try_skip_load_drink() is None
+
+
+class SkippingR2Client(FakeR2Client):
+    """Times out on load-drink until the operator presses skip."""
+
+    def __init__(self, status_sequence):
+        super().__init__(status_sequence, load_drink_result="timeout")
+        self.state_machine = None
+
+    def post_load_drink(self, request_id):
+        result = super().post_load_drink(request_id)
+        assert self.state_machine.try_skip_load_drink() == SKIP_PENDING
+        return result
+
+
+def test_skip_while_load_drink_retries_moves_on_without_another_post():
+    r2 = SkippingR2Client(
+        [
+            {"outcome": "completed", "request_id": "none"},
+            # R2 never received our request_id, so it reports an older one.
+            {"outcome": "completed", "request_id": "OLD"},
+        ]
+    )
+    pf = FakePFClient(["ready"])
+    sm = make_state_machine(r2, pf, [], [])
+    r2.state_machine = sm
+
+    sm.try_start("Tanaka")
+    sm.run_started_cycle()
+
+    assert r2.load_drink_calls == ["RID"]
+    assert pf.placed_calls == 1
+    assert sm.snapshot()["step"] == STEP_AWAITING_CHECKIN
+
+
+def test_skip_after_load_drink_failed_resumes_from_polling_r2_active():
+    changes = []
+    r2 = FakeR2Client(
+        [
+            {"outcome": "completed", "request_id": "none"},
+            {"outcome": "completed", "request_id": "OLD"},
+        ],
+        load_drink_result="server_error",
+    )
+    pf = FakePFClient(["ready"])
+    sm = make_state_machine(r2, pf, changes, [])
+    sm.try_start("Tanaka")
+    sm.run_started_cycle()
+    assert sm.snapshot()["phase"] == PHASE_ERROR
+
+    assert sm.try_skip_load_drink() == SKIP_RESUME
+    assert sm.snapshot()["phase"] == PHASE_WAITING
+    assert sm.snapshot()["error_message"] is None
+
+    sm.resume_after_load_drink()
+
+    assert r2.load_drink_calls == ["RID"]
+    assert pf.placed_calls == 1
+    assert "polling_r2_active" in [c["step"] for c in changes]
+    assert sm.snapshot()["step"] == STEP_AWAITING_CHECKIN
+
+
+def test_request_id_mismatch_still_fails_when_not_skipped():
+    r2 = FakeR2Client(
+        [
+            {"outcome": "completed", "request_id": "none"},
+            {"outcome": "completed", "request_id": "OLD"},
+        ]
+    )
+    sm = make_state_machine(r2, FakePFClient(["ready"]), [], [])
+    sm.try_start("Tanaka")
+    sm.run_started_cycle()
+
+    assert sm.snapshot()["phase"] == PHASE_ERROR

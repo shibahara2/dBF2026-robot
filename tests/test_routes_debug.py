@@ -150,3 +150,12 @@ def test_debug_js_loads_recent_voice_turns_and_escapes_text():
     assert "const MAX_VOICE_TURNS = 20;" in source
     # Transcripts come from a microphone; never inject them as HTML.
     assert "innerHTML" not in source
+
+
+def test_debug_page_has_skip_load_drink_button():
+    client = make_client()
+
+    resp = client.get("/debug")
+
+    assert resp.status_code == 200
+    assert b'id="skip-load-drink"' in resp.data

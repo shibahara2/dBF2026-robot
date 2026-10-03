@@ -28,6 +28,9 @@ KIOSK_ENTRY_STAGES = (ENTRY_STAGE_START, ENTRY_STAGE_SELECT)
 
 DEFAULT_ENTRY_IDLE_SECONDS = 60.0
 
+SKIP_PENDING = "pending"
+SKIP_RESUME = "resume"
+
 
 def default_request_id():
     now = datetime.now(timezone.utc)
@@ -77,6 +80,7 @@ class StateMachine:
         self._entry_stage = None
         self._entry_at = None
         self._entry_touched = None
+        self._load_drink_skipped = False
 
     def snapshot(self):
         with self._lock:
@@ -184,6 +188,7 @@ class StateMachine:
             self._guest_name = guest_name
             self._request_id = None
             self._error_message = None
+            self._load_drink_skipped = False
             self._set_entry_locked(source, ENTRY_STAGE_CHECKIN)
             snap = self._snapshot_locked()
             self._on_change(snap)
@@ -195,6 +200,24 @@ class StateMachine:
                 return False
         self._to_waiting_step0()
         return True
+
+    def try_skip_load_drink(self):
+        """Let an operator move past POST load-drink without R2 accepting it.
+
+        Returns SKIP_PENDING when the send loop is still retrying (it stops at
+        its next attempt), SKIP_RESUME when load-drink already failed and the
+        cycle must be resumed by the runner, or None when not at that step.
+        """
+        with self._lock:
+            if self._step != STEP_SENDING_LOAD_DRINK:
+                return None
+            self._load_drink_skipped = True
+            if self._phase != PHASE_ERROR:
+                return SKIP_PENDING
+            self._phase = PHASE_WAITING
+            self._error_message = None
+            self._on_change(self._snapshot_locked())
+            return SKIP_RESUME
 
     def _to_waiting_step0(self):
         self._update(
@@ -229,6 +252,13 @@ class StateMachine:
         self._wait_before_step()
         if not self._send_load_drink(request_id):
             return
+        self._run_after_load_drink(request_id)
+
+    def resume_after_load_drink(self):
+        """Continue a cycle whose load-drink was skipped after it had failed."""
+        self._run_after_load_drink(self.snapshot()["request_id"])
+
+    def _run_after_load_drink(self, request_id):
         self._update(phase=PHASE_ACTIVE, step=STEP_POLLING_R2_ACTIVE)
         self._wait_before_step()
         if not self._poll_r2_active(request_id):
@@ -269,6 +299,8 @@ class StateMachine:
 
     def _send_load_drink(self, request_id):
         while True:
+            if self._load_drink_skipped:
+                return True
             outcome = self._r2.post_load_drink(request_id)
             if outcome == "accepted":
                 return True
@@ -284,7 +316,12 @@ class StateMachine:
             outcome = result["outcome"]
             response_request_id = result["request_id"]
             self._record_r2_status(outcome)
-            if response_request_id is not None and response_request_id != request_id:
+            # R2 never saw our request_id when load-drink was skipped.
+            if (
+                not self._load_drink_skipped
+                and response_request_id is not None
+                and response_request_id != request_id
+            ):
                 self._fail("R2から返ったrequest_idが一致しません")
                 return False
             if outcome in ("returning", "completed"):
@@ -310,17 +347,23 @@ class StateMachineRunner:
     def request_checkin(self, name):
         started = self._state_machine.try_start(name)
         if started:
-            self._start_signal.put(True)
+            self._start_signal.put(self._state_machine.run_started_cycle)
         return started
 
     def request_reset(self):
         return self._state_machine.try_reset()
 
+    def request_skip_load_drink(self):
+        outcome = self._state_machine.try_skip_load_drink()
+        if outcome == SKIP_RESUME:
+            self._start_signal.put(self._state_machine.resume_after_load_drink)
+        return outcome is not None
+
     def run_forever(self):
         while True:
-            self._start_signal.get()
+            work = self._start_signal.get()
             try:
-                self._state_machine.run_started_cycle()
+                work()
             except Exception:
                 self._state_machine.fail_unexpected(
                     "内部エラーが発生しました。ログを確認してください。"

@@ -247,3 +247,27 @@ body {
 .voice-turn.outcome-no_keyword {
   color: #999;
 }
+
+#manual-controls {
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  padding: 0.75rem 1rem;
+  margin-bottom: 1rem;
+}
+
+#manual-controls button {
+  font-size: 0.9rem;
+  padding: 0.35rem 0.9rem;
+}
+
+#skip-load-drink-result {
+  margin-left: 0.75rem;
+  font-size: 0.85rem;
+  color: #666;
+}
+
+.manual-hint {
+  margin: 0.5rem 0 0;
+  font-size: 0.8rem;
+  color: #666;
+}

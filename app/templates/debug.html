@@ -26,6 +26,13 @@
       <p id="debug-error-message"></p>
     </div>
 
+    <h2 class="section-label">手動操作</h2>
+    <div id="manual-controls">
+      <button type="button" id="skip-load-drink" disabled>POST load-drink をスキップして次へ</button>
+      <span id="skip-load-drink-result"></span>
+      <p class="manual-hint">R2がload-drinkを受理しない（リトライ中・エラー）ときに、受理されたものとして「GET load-drink/status (poll)」へ進めます。</p>
+    </div>
+
     <h2 class="section-label">GETステータス最新取得</h2>
     <div id="get-status-panel">
       <div class="get-status-row">

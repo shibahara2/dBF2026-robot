@@ -82,3 +82,11 @@ def reset():
     if not runner.request_reset():
         return jsonify({"message": "not in error state"}), 409
     return jsonify({"message": "reset accepted"}), 200
+
+
+@checkin_bp.route("/api/debug/skip-load-drink", methods=["POST"])
+def skip_load_drink():
+    runner = current_app.config["STATE_MACHINE_RUNNER"]
+    if not runner.request_skip_load_drink():
+        return jsonify({"message": "not sending load-drink"}), 409
+    return jsonify({"message": "load-drink skipped"}), 200

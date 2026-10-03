@@ -34,6 +34,22 @@ const entryAt = document.getElementById("entry-at");
 const entryStarts = document.querySelectorAll(".entry-start");
 const entryStages = document.querySelectorAll(".entry-stage");
 
+const skipLoadDrinkButton = document.getElementById("skip-load-drink");
+const skipLoadDrinkResult = document.getElementById("skip-load-drink-result");
+
+skipLoadDrinkButton.addEventListener("click", () => {
+  skipLoadDrinkButton.disabled = true;
+  fetch("/api/debug/skip-load-drink", { method: "POST" })
+    .then((resp) => {
+      skipLoadDrinkResult.textContent = resp.ok
+        ? "スキップしました"
+        : "スキップできません（load-drink送信中ではありません）";
+    })
+    .catch(() => {
+      skipLoadDrinkResult.textContent = "送信に失敗しました";
+    });
+});
+
 const MAX_VOICE_TURNS = 20;
 const voiceTurnRows = document.getElementById("voice-turn-rows");
 
@@ -106,6 +122,8 @@ function toSecondsTime(isoString) {
 
 function render(snapshot) {
   renderEntry(snapshot);
+
+  skipLoadDrinkButton.disabled = snapshot.step !== "sending_load_drink";
 
   statusPhase.textContent = snapshot.phase;
   statusStep.textContent = snapshot.step;
