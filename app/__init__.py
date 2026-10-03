@@ -12,6 +12,7 @@ from .routes.events import events_bp
 from .routes.ui import ui_bp
 from .routes.voice_turns import voice_turns_bp
 from .routes.external_start import external_start_bp
+from .routes.r2_debug import r2_debug_bp
 from .reservations import ReservationStore
 from .sse import EventBroadcaster
 from .state_machine import StateMachine, StateMachineRunner
@@ -58,6 +59,10 @@ def create_app(r2_controller=None, pf_client=None, reservation_store=None, start
     app.config["R2_CONTROLLER"] = r2_controller
     app.config["R2_LINK"] = r2_link
     app.config["RESERVATION_STORE"] = reservation_store
+
+    r2_controller.add_listener(
+        lambda snap: broadcaster.publish({"type": "r2_state", **snap})
+    )
     app.config["VOICE_TURN_LOG"] = VoiceTurnLog()
     app.config["VISUAL_START_COOLDOWN_SECONDS"] = float(
         config.VISUAL_START_COOLDOWN_SECONDS
@@ -69,6 +74,7 @@ def create_app(r2_controller=None, pf_client=None, reservation_store=None, start
     app.register_blueprint(ui_bp)
     app.register_blueprint(external_start_bp)
     app.register_blueprint(voice_turns_bp)
+    app.register_blueprint(r2_debug_bp)
 
     thread = threading.Thread(target=runner.run_forever, daemon=True)
     thread.start()

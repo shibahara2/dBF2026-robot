@@ -200,3 +200,23 @@ def test_default_app_builds_an_r2_link_without_starting_it_when_asked(monkeypatc
     assert link.url == "ws://r2.test:9002/realtime"
     assert link.state()[0] == "stopped"
     assert app.config["R2_CONTROLLER"].snapshot()["status"] == "completed"
+
+
+def test_r2_changes_are_published_as_typed_sse_events():
+    controller = FakeR2Controller()
+    app = create_app(r2_controller=controller, pf_client=FakePFClient())
+    subscriber = app.config["EVENT_BROADCASTER"].subscribe()
+
+    controller.listeners[0]({"status": "loading", "connection": "connected"})
+
+    assert subscriber.get(timeout=1) == {
+        "type": "r2_state",
+        "status": "loading",
+        "connection": "connected",
+    }
+
+
+def test_r2_debug_routes_are_registered():
+    app = create_app(r2_controller=FakeR2Controller(), pf_client=FakePFClient())
+
+    assert app.test_client().get("/api/debug/r2").status_code == 200
