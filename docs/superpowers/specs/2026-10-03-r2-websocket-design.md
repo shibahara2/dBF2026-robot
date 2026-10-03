@@ -248,6 +248,19 @@ status は `completed` のままにする。「開始中」はステートマシ
 AI 管制PF の部分はポーリングのまま変えない。R2 の部分だけ、`R2Controller` の
 状態変化を待つ形（イベント駆動）にする。
 
+ステートマシンの状態は phase と step の組み合わせ。phase は今のまま
+（`waiting` / `active` / `error`）。`error` のときの step は、エラーが起きた
+段階のまま残る。step は次のとおり（3〜5 は名前を変える。ユーザー確認済み）。
+
+| 順番 | step | phase | 何をしているか |
+|---|---|---|---|
+| 1 | `awaiting_checkin` | waiting | チェックイン待ち |
+| 2 | `polling_pf_ready` | waiting | AI 管制PF の `Ready` を待つ（ポーリング） |
+| 3 | `waiting_r2_ready`（旧 `polling_r2_ready`） | waiting | R2 が接続中かつ `completed` になるのを待つ |
+| 4 | `starting_r2`（旧 `sending_load_drink`） | waiting | NAVIGATION → `play_navigation5(true)` → 返事 |
+| 5 | `waiting_r2_placed`（旧 `polling_r2_active`） | active | `returning`（`under_mode` の `_m5`）を待つ |
+| 6 | `notifying_pf_placed` | active | AI 管制PF に `drink/placed` を送る。終わったら 1 に戻る |
+
 | step（新） | 旧 | 何をするか | 次へ進む条件 / エラー |
 |---|---|---|---|
 | `waiting_r2_ready` | `polling_r2_ready` | 接続中かつ `completed` になるまで待つ。未接続のあいだも待ち続ける | 条件を満たしたら次へ。`failed` ならエラー |
