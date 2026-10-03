@@ -396,3 +396,55 @@ def test_wait_until_wakes_on_change():
     waiter.join(timeout=2)
 
     assert result["snap"]["status"] == STATUS_RETURNING
+
+
+def test_concurrent_disconnect_after_success_reply():
+    """Test that disconnect between reply and LOADING status setting fails the start.
+
+    This covers a race condition where a disconnect happens after the success
+    reply is received but before the status transitions to LOADING.
+    """
+    link, controller = make_controller()
+
+    def on_send_disconnect(obj):
+        if obj["type"] == "play_navigation5":
+            # Send success reply, then disconnect
+            # This creates a race window between reply processing and status transition
+            link.receive(reply(True))
+            link.set_state("disconnected")
+
+    link.on_send = on_send_disconnect
+
+    # Start should fail due to disconnect, not succeed
+    reason = controller.start_load_drink()
+
+    snap = controller.snapshot()
+    assert snap["status"] == STATUS_FAILED
+    assert snap["failure"] == FAILURE_START_DISCONNECTED
+    assert reason  # Should have a failure message
+
+
+def test_concurrent_stop_after_success_reply():
+    """Test that stop() between reply and LOADING status setting fails the start.
+
+    This covers a race condition where stop() is called after the success
+    reply is received but before the status transitions to LOADING.
+    """
+    link, controller = make_controller()
+
+    def on_send_with_stop(obj):
+        if obj["type"] == "play_navigation5":
+            # Send success reply, then call stop
+            # This creates a race window between reply processing and status transition
+            link.receive(reply(True))
+            controller.stop()
+
+    link.on_send = on_send_with_stop
+
+    # Start should fail due to stop, not succeed
+    reason = controller.start_load_drink()
+
+    snap = controller.snapshot()
+    assert snap["status"] == STATUS_FAILED
+    assert snap["failure"] == FAILURE_STOPPED
+    assert reason  # Should have a failure message

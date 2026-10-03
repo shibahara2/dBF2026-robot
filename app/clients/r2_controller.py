@@ -271,10 +271,24 @@ class R2Controller:
                 FAILURE_START_NO_REPLY if connected else FAILURE_START_DISCONNECTED
             )
         if isinstance(reply, dict) and reply.get("success") is True:
+            return_value = None
             with self._cond:
-                self._set_status_locked(STATUS_LOADING)
+                # Guard: only transition to LOADING if conditions still hold
+                if self._status == STATUS_COMPLETED and not self._abort_start and self._connection == STATE_CONNECTED:
+                    self._set_status_locked(STATUS_LOADING)
+                else:
+                    # Conditions changed - handle as failure
+                    if self._abort_start:
+                        return_value = FAILURE_MESSAGES[FAILURE_STOPPED]
+                    elif self._connection != STATE_CONNECTED:
+                        if self._status == STATUS_COMPLETED:
+                            self._set_status_locked(STATUS_FAILED, FAILURE_START_DISCONNECTED)
+                        return_value = FAILURE_MESSAGES[FAILURE_START_DISCONNECTED]
+                    else:
+                        # Status is not COMPLETED (shouldn't happen but be safe)
+                        return_value = FAILURE_MESSAGES[self._failure] if self._failure else "R2が待機中ではありません"
             self._publish()
-            return None
+            return return_value
         return self._fail_start(FAILURE_START_REJECTED)
 
     def _fail_start(self, failure):
