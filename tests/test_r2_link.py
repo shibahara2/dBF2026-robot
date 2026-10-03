@@ -164,3 +164,17 @@ def test_manual_disconnect_stops_reconnecting_until_connect():
     wait_until(lambda: link.state()[0] == STATE_CONNECTED)
     link.close()
     assert len(attempts) == 2
+
+
+def test_connection_id_increments_per_new_connection():
+    first, second = FakeSocket(), FakeSocket()
+    link = make_link([first, second])
+    assert link.connection_id() == 0
+    link.start()
+    wait_until(lambda: link.state()[0] == STATE_CONNECTED)
+    assert link.connection_id() == 1
+
+    first.incoming.put(ConnectionError("dropped"))
+
+    wait_until(lambda: link.connection_id() == 2 and link.state()[0] == STATE_CONNECTED)
+    link.close()

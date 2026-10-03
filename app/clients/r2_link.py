@@ -77,6 +77,7 @@ class R2Link:
         self._state = STATE_STOPPED
         self._state_at = None
         self._socket = None
+        self._connection_id = 0
         self._enabled = False
         self._closed = False
         self._wake = threading.Event()
@@ -86,6 +87,11 @@ class R2Link:
     def state(self):
         with self._lock:
             return self._state, self._state_at
+
+    def connection_id(self):
+        """Counts the sockets that have become CONNECTED, to tell connections apart."""
+        with self._lock:
+            return self._connection_id
 
     def start(self):
         if self._thread is not None:
@@ -160,6 +166,7 @@ class R2Link:
                 keep = self._enabled and not self._closed
                 if keep:
                     self._socket = sock
+                    self._connection_id += 1
             if not keep:
                 _close_quietly(sock)
                 continue

@@ -215,12 +215,15 @@ sudo iptables -A FORWARD -s 192.168.0.11 -d 10.17.2.171 -m state --state ESTABLI
 - R2 の status（`completed` / `loading` / `returning` / `failed`）はこのアプリの中に
   しかない。**R2 の動作中に Flask を再起動しない**（再起動すると `completed` に戻る）。
 - `/debug` の R2 パネルで、接続状態、status、`under_mode`、開始の返事を確認できる。
-  - STOP：R2 をその場で止めて `failed` にする。R2 を手で A に戻してから
-    「R2 を初期状態に戻す」→「ステートマシンをリセット」。
+  - STOP：UI-DRP の停止の手順（ナビゲーションを抜けて一連の動作を止める操作）を送り、
+    `failed` にする。ロボットがその結果どういう状態になるかは現地で確かめること。
+    R2 を手で A に戻してから「R2 を初期状態に戻す」→「ステートマシンをリセット」。
   - 開始の返事が来なかったとき：R2 が A にいる（`under_mode` が `_m1`）なら
     「開始を再送」で続きから進める。
 - R2 が未接続のあいだ、チェックインは `waiting_r2_ready`（R2 の待機確認）で待ち続ける。
   エラーにはならず、ステートマシンのリセットでも抜けられない。R2 につながると先へ進む。
+- `/debug` の R2 操作と `/api/checkin` には認証がない。spark-3a50 の 5100/tcp は ufw で
+  キオスクPCと展示PCだけに絞ること。
 
 ## Test
 
@@ -258,8 +261,8 @@ pytest -q \
 | `PF_BASE_URL` | `http://localhost:5002` | Base URL of the AI管制PF (guide robot control plane) |
 | `PF_API_KEY` | unset | `X-API-Key` sent to the AI管制PF; the local mock accepts any non-empty value |
 | `PF_PROXY_URL` | unset | Optional proxy URL used for PF requests |
-| `POLL_INTERVAL_SECONDS` | `2` | Seconds between status polls while waiting on R2/PF |
-| `HTTP_TIMEOUT_SECONDS` | `5` | Per-request HTTP timeout for calls to R2/PF |
+| `POLL_INTERVAL_SECONDS` | `2` | Seconds between status polls while waiting on PF |
+| `HTTP_TIMEOUT_SECONDS` | `5` | Per-request HTTP timeout for calls to PF |
 | `PF_MOCK_INITIALIZING_SECONDS` | `0` | (mock only) seconds the PF mock reports `Initializing` before `Ready` |
 | `PF_MOCK_ACCEPTED` | `true` | (mock only) set to `false` to make the PF mock reject `drink/placed` |
 | `PF_MOCK_FORCE_FAILURE` | unset | (mock only) `422` or `500` to force that PF mock response from `guide-robot/status` |

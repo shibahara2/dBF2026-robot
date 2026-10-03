@@ -86,7 +86,7 @@ class R2Controller:
         self._cond = threading.Condition()
         self._listeners = []
 
-        self._connection = link.state()[0]
+        self._connection, self._connection_at = link.state()
         self._status = STATUS_COMPLETED
         self._status_at = None
         self._failure = None
@@ -94,6 +94,7 @@ class R2Controller:
         self._stopping = False
         self._abort_start = False
         self._awaiting_reply = False
+        self._pending_value = None  # value of the play_navigation5 awaiting its reply
         self._reply = None
         self._reply_sent_at = None
         self._under_mode = None
@@ -112,11 +113,10 @@ class R2Controller:
             return self._snapshot_locked()
 
     def _snapshot_locked(self):
-        connection, connection_at = self._link.state()
         return {
             "url": self._link.url,
-            "connection": connection,
-            "connection_at": connection_at,
+            "connection": self._connection,
+            "connection_at": self._connection_at,
             "status": self._status,
             "status_at": self._status_at,
             "failure": self._failure,
@@ -160,6 +160,7 @@ class R2Controller:
     def _on_link_state(self, state):
         with self._cond:
             self._connection = state
+            self._connection_at = self._now()
             if state != STATE_CONNECTED and self._status in (STATUS_LOADING, STATUS_RETURNING):
                 self._set_status_locked(STATUS_FAILED, FAILURE_DISCONNECTED)
             self._cond.notify_all()
@@ -198,7 +199,7 @@ class R2Controller:
         with self._cond:
             self._last_reply = data
             self._last_reply_at = self._now()
-            if self._awaiting_reply:
+            if self._awaiting_reply and self._pending_value is True:
                 self._last_reply_seconds = round(time.monotonic() - self._reply_sent_at, 3)
                 self._reply = data if data is not None else {}
                 self._awaiting_reply = False
@@ -236,17 +237,31 @@ class R2Controller:
             return f"R2が待機中ではありません（status={self._status}）"
         return None
 
+    def _same_connection_locked(self, connection_id):
+        return (
+            self._connection == STATE_CONNECTED
+            and self._link.connection_id() == connection_id
+        )
+
     def _run_start(self):
+        # UI-DRP sends play_navigation5 only on the socket that got the combo.
+        connection_id = self._link.connection_id()
         if not self._link.send_json(gamepad_message(_NO_BUTTONS, COMBO_NAVIGATION)):
             return self._fail_start(FAILURE_START_DISCONNECTED)
         self._sleep(NAV_WAIT_SECONDS)
         with self._cond:
             if self._abort_start:
                 return FAILURE_MESSAGES[FAILURE_STOPPED]
-            self._reply = None
-            self._awaiting_reply = True
-            self._reply_sent_at = time.monotonic()
-        if not self._link.send_json(play_navigation5_message(True)):
+            if not self._same_connection_locked(connection_id):
+                disconnected = True
+            else:
+                disconnected = False
+                self._reply = None
+                self._awaiting_reply = True
+                self._pending_value = True
+                self._reply_sent_at = time.monotonic()
+                sent = self._link.send_json(play_navigation5_message(True))
+        if disconnected or not sent:
             return self._fail_start(FAILURE_START_DISCONNECTED)
 
         deadline = time.monotonic() + self._start_reply_timeout
@@ -256,7 +271,7 @@ class R2Controller:
             while (
                 self._reply is None
                 and not self._abort_start
-                and self._connection == STATE_CONNECTED
+                and self._same_connection_locked(connection_id)
             ):
                 remaining = deadline - time.monotonic()
                 if remaining <= 0:
@@ -266,7 +281,7 @@ class R2Controller:
             # Read values
             reply = self._reply
             aborted = self._abort_start
-            connected = self._connection == STATE_CONNECTED
+            connected = self._same_connection_locked(connection_id)
 
             # Make decision - all in same critical section
             if aborted:
@@ -333,13 +348,19 @@ class R2Controller:
             self._set_status_locked(STATUS_FAILED, FAILURE_STOPPED)
         self._publish()
         try:
+            connection_id = self._link.connection_id()
             for _ in range(LEAVE_NAV_REPEAT):
                 if not self._link.send_json(gamepad_message(_BACK_START_BUTTONS, COMBO_STAND)):
                     return "STOP の送信中にR2との接続が切れました"
             if not self._link.send_json(gamepad_message(_NO_BUTTONS, COMBO_NONE)):
                 return "STOP の送信中にR2との接続が切れました"
             self._sleep(NAV_WAIT_SECONDS)
-            if not self._link.send_json(play_navigation5_message(False)):
+            with self._cond:
+                if not self._same_connection_locked(connection_id):
+                    return "STOP の送信中にR2との接続が切れました"
+                self._pending_value = False
+                sent = self._link.send_json(play_navigation5_message(False))
+            if not sent:
                 return "STOP の送信中にR2との接続が切れました"
             return None
         finally:

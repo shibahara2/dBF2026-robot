@@ -116,7 +116,7 @@ const r2Hint = document.getElementById("r2-hint");
 const R2_BUTTONS = {
   "r2-stop": {
     action: "stop",
-    confirm: "R2 を止めます（その場で立ち止まり、status は failed になります）。",
+    confirm: "R2 に UI-DRP の停止の手順（ナビゲーションを抜けて一連の動作を止める操作）を送ります。ロボットの状態は現地で確かめてください。status は failed になります。",
     hint: "R2 に接続しているときだけ",
     enabled: (s) => s.connection === "connected",
   },

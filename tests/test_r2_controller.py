@@ -9,6 +9,7 @@ from app.clients.r2_controller import (
     FAILURE_START_DISCONNECTED,
     FAILURE_START_NO_REPLY,
     FAILURE_START_REJECTED,
+    FAILURE_MESSAGES,
     FAILURE_STOPPED,
     STATUS_COMPLETED,
     STATUS_FAILED,
@@ -45,9 +46,13 @@ class FakeLink:
         self.on_send = None
         self.connect_calls = 0
         self.disconnect_calls = 0
+        self._connection_id = 1 if state == "connected" else 0
 
     def state(self):
         return self._state, "2026-10-04T00:00:00Z"
+
+    def connection_id(self):
+        return self._connection_id
 
     def send_json(self, obj):
         if self._state != "connected":
@@ -64,8 +69,14 @@ class FakeLink:
         self.disconnect_calls += 1
 
     def set_state(self, state):
+        if state == "connected" and self._state != "connected":
+            self._connection_id += 1
         self._state = state
         self.on_state_change(state)
+
+    def reconnect(self):
+        self.set_state("disconnected")
+        self.set_state("connected")
 
     def receive(self, message):
         self.on_message(message)
@@ -449,3 +460,66 @@ def test_stop_before_reply_processing_leaves_failed():
     assert snap["status"] == STATUS_FAILED
     assert snap["failure"] == FAILURE_STOPPED
     assert reason  # Should have a failure message
+
+
+def test_reconnect_during_the_2s_wait_does_not_send_play_true():
+    link, controller = make_controller()
+    controller._sleep = lambda seconds: link.reconnect()
+
+    reason = controller.start_load_drink()
+
+    assert reason == FAILURE_MESSAGES[FAILURE_START_DISCONNECTED]
+    assert link.sent == [ENTER_NAV]
+    snap = controller.snapshot()
+    assert (snap["status"], snap["failure"]) == (STATUS_FAILED, FAILURE_START_DISCONNECTED)
+
+
+def test_reconnect_during_the_stop_wait_does_not_send_play_false():
+    link, controller = make_controller()
+    controller._sleep = lambda seconds: link.reconnect()
+
+    reason = controller.stop()
+
+    assert reason == "STOP の送信中にR2との接続が切れました"
+    assert link.sent == [LEAVE_NAV] * 4 + [RELEASE]
+    snap = controller.snapshot()
+    assert (snap["status"], snap["failure"]) == (STATUS_FAILED, FAILURE_STOPPED)
+
+
+def test_reconnect_while_waiting_for_the_reply_is_start_disconnected():
+    link, controller = make_controller()
+
+    def on_send(obj):
+        if obj["type"] == "play_navigation5":
+            link.reconnect()
+
+    link.on_send = on_send
+
+    reason = controller.start_load_drink()
+
+    assert reason == FAILURE_MESSAGES[FAILURE_START_DISCONNECTED]
+    snap = controller.snapshot()
+    assert (snap["status"], snap["failure"]) == (STATUS_FAILED, FAILURE_START_DISCONNECTED)
+
+
+def test_reply_to_play_false_is_not_taken_as_the_start_reply():
+    link, controller = make_controller()
+    controller._awaiting_reply = True
+    controller._pending_value = False
+
+    link.receive(reply(True))
+
+    assert controller._reply is None
+    assert controller._awaiting_reply is True
+    assert controller.snapshot()["last_reply"] == {"success": True}
+
+
+def test_snapshot_connection_follows_the_controllers_own_view():
+    link, controller = make_controller()
+    link._state = "disconnected"  # the link changed but the callback has not run yet
+
+    snap = controller.snapshot()
+
+    assert snap["connection"] == "connected"
+    link.set_state("disconnected")
+    assert controller.snapshot()["connection"] == "disconnected"
