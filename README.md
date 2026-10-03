@@ -214,16 +214,8 @@ sudo iptables -A FORWARD -s 192.168.0.11 -d 10.17.2.171 -m state --state ESTABLI
 
 基本は spark-3a50 で動かす。spark-3a50 が使えないときは、spark-60c9 で Flask も
 動かせる。spark-60c9 は THEMIS_5G でロボットに直接つながっているので、上の転送は要らない。
-コードの変更も要らず、spark-60c9 の `.env`（git 管理外）を次のように書き換えるだけでよい。
-
-```
-R2_WS_URL=ws://192.168.0.11:9002/realtime
-THEMIS_WS_URL=ws://192.168.0.11:9002/zed2i
-VISUAL_TRIGGER_URL=http://127.0.0.1:5100/api/visual/start
-PF_BASE_URL=https://reception.robility-system-stg.com
-PF_API_KEY=<spark-3a50 と同じ値>
-VLM_BACKEND_URL=http://<LLM のホスト>:8080/v1
-```
+コードの変更も要らず、spark-60c9 の `.env`（git 管理外）の環境ごとの設定を、`.env.example` の
+「local 本番」ブロックの値に書き換えるだけでよい（`PF_API_KEY` は spark-3a50 と同じ値）。
 
 **切り替えの手順**
 
