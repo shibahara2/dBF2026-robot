@@ -248,26 +248,110 @@ body {
   color: #999;
 }
 
-#manual-controls {
-  border: 1px solid #ccc;
+#r2-panel {
+  border: 2px solid #ccc;
   border-radius: 4px;
   padding: 0.75rem 1rem;
   margin-bottom: 1rem;
 }
 
-#manual-controls button {
+#r2-panel.r2-connection-connected {
+  border-color: #1e8e3e;
+}
+
+#r2-panel.r2-connection-disconnected,
+#r2-panel.r2-connection-stopped {
+  border-color: #b00020;
+}
+
+#r2-panel.r2-connection-connecting {
+  border-color: #f29900;
+}
+
+.r2-row {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.r2-badge {
+  font-weight: bold;
+}
+
+.r2-connection-connected .r2-badge {
+  color: #1e8e3e;
+}
+
+.r2-connection-disconnected .r2-badge,
+.r2-connection-stopped .r2-badge {
+  color: #b00020;
+}
+
+.r2-connection-connecting .r2-badge {
+  color: #f29900;
+}
+
+.r2-at {
+  font-size: 0.8rem;
+  color: #666;
+}
+
+.r2-fields {
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  gap: 0.25rem 1rem;
+  margin: 0.75rem 0;
+}
+
+.r2-fields dt {
+  font-weight: bold;
+  font-size: 0.8rem;
+  color: #666;
+}
+
+.r2-fields dd {
+  margin: 0;
+  font-family: monospace;
+}
+
+.r2-buttons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.r2-buttons button {
   font-size: 0.9rem;
   padding: 0.35rem 0.9rem;
 }
 
-#skip-load-drink-result {
-  margin-left: 0.75rem;
-  font-size: 0.85rem;
-  color: #666;
+.r2-danger {
+  color: #fff;
+  background: #b00020;
+  border: 1px solid #b00020;
 }
 
-.manual-hint {
+.r2-danger:disabled {
+  background: #ccc;
+  border-color: #ccc;
+}
+
+#r2-confirm {
+  margin-top: 0.75rem;
+  padding: 0.5rem 0.75rem;
+  background: #fff4e5;
+  border: 1px solid #f29900;
+  border-radius: 4px;
+}
+
+#r2-hint {
   margin: 0.5rem 0 0;
-  font-size: 0.8rem;
+  font-size: 0.75rem;
+  color: #999;
+}
+
+#r2-result {
+  margin: 0.5rem 0 0;
+  font-size: 0.85rem;
   color: #666;
 }

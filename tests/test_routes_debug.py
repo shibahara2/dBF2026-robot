@@ -40,9 +40,9 @@ def test_debug_page_has_all_step_arrows():
     assert resp.status_code == 200
     for step_id in [
         "arrow-polling_pf_ready",
-        "arrow-polling_r2_ready",
-        "arrow-sending_load_drink",
-        "arrow-polling_r2_active",
+        "arrow-waiting_r2_ready",
+        "arrow-starting_r2",
+        "arrow-waiting_r2_placed",
         "arrow-notifying_pf_placed",
     ]:
         assert step_id.encode() in resp.data
@@ -66,9 +66,8 @@ def test_debug_page_has_get_status_panel():
     assert resp.status_code == 200
     assert b'id="pf-status-value"' in resp.data
     assert b'id="pf-status-at"' in resp.data
-    assert b'id="r2-status-value"' in resp.data
-    assert b'id="r2-status-at"' in resp.data
     assert b'id="current-time"' in resp.data
+    assert b'id="r2-status-value"' not in resp.data
 
 
 def test_debug_page_shows_connection_targets():
@@ -125,11 +124,12 @@ def test_debug_js_renders_entry_fields():
         assert f"snapshot.{field}" in source
 
 
-def test_debug_js_handles_voice_turns_and_skips_other_typed_events():
+def test_debug_js_handles_typed_events_before_rendering_snapshots():
     source = (Path(__file__).parents[1] / "app" / "static" / "debug.js").read_text()
 
     assert re.search(
-        r"if \(payload\.type\) \{\s*if \(payload\.type === \"voice_turn\"\) \{\s*addVoiceTurn\(payload\);\s*\}\s*return;\s*\}\s*render\(payload\);",
+        r"if \(payload\.type\) \{\s*if \(payload\.type === \"voice_turn\"\) \{\s*addVoiceTurn\(payload\);\s*\}\s*"
+        r"if \(payload\.type === \"r2_state\"\) \{\s*renderR2\(payload\);\s*\}\s*return;\s*\}\s*render\(payload\);",
         source,
     )
 
@@ -152,10 +152,54 @@ def test_debug_js_loads_recent_voice_turns_and_escapes_text():
     assert "innerHTML" not in source
 
 
-def test_debug_page_has_skip_load_drink_button():
-    client = make_client()
+def test_debug_page_has_r2_panel():
+    resp = make_client().get("/debug")
 
-    resp = client.get("/debug")
+    for element_id in [
+        "r2-panel",
+        "r2-connection",
+        "r2-connection-at",
+        "r2-status",
+        "r2-status-at",
+        "r2-failure",
+        "r2-under-mode",
+        "r2-under-mode-at",
+        "r2-last-reply",
+        "r2-toggle-connection",
+        "r2-stop",
+        "r2-resend",
+        "r2-mark-returning",
+        "r2-mark-completed",
+        "r2-mark-failed",
+        "r2-reset",
+        "r2-confirm",
+        "r2-result",
+        "r2-hint",
+        "state-machine-reset",
+    ]:
+        assert f'id="{element_id}"'.encode() in resp.data
+    assert b'id="skip-load-drink"' not in resp.data
 
-    assert resp.status_code == 200
-    assert b'id="skip-load-drink"' in resp.data
+
+def test_debug_js_drives_r2_api_and_confirms_risky_actions():
+    source = (Path(__file__).parents[1] / "app" / "static" / "debug.js").read_text()
+
+    assert 'fetch("/api/debug/r2")' in source
+    for action in ["connect", "disconnect", "stop", "resend", "mark", "reset"]:
+        assert f'"{action}"' in source
+    assert "temi が出発します" in source
+    assert "R2 が A にいることを確認しましたか" in source
+    assert 'fetch("/api/reset", { method: "POST" })' in source
+    # No browser dialogs: they block the page (and automation).
+    for dialog in ["confirm(", "alert(", "prompt("]:
+        assert dialog not in source
+    assert "innerHTML" not in source
+
+
+def test_debug_sequence_diagram_describes_the_websocket_exchange():
+    text = make_client().get("/debug").data.decode()
+
+    assert "play_navigation5" in text
+    assert "under_mode" in text
+    assert "GET load-drink/status" not in text
+    assert "POST load-drink" not in text
