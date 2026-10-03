@@ -250,7 +250,9 @@ class R2Controller:
             return self._fail_start(FAILURE_START_DISCONNECTED)
 
         deadline = time.monotonic() + self._start_reply_timeout
+        return_msg = None
         with self._cond:
+            # Wait for reply, abort, or timeout
             while (
                 self._reply is None
                 and not self._abort_start
@@ -260,36 +262,40 @@ class R2Controller:
                 if remaining <= 0:
                     break
                 self._cond.wait(remaining)
+
+            # Read values
             reply = self._reply
             aborted = self._abort_start
             connected = self._connection == STATE_CONNECTED
 
-        if aborted:
-            return FAILURE_MESSAGES[FAILURE_STOPPED]
-        if reply is None:
-            return self._fail_start(
-                FAILURE_START_NO_REPLY if connected else FAILURE_START_DISCONNECTED
-            )
-        if isinstance(reply, dict) and reply.get("success") is True:
-            return_value = None
-            with self._cond:
-                # Guard: only transition to LOADING if conditions still hold
-                if self._status == STATUS_COMPLETED and not self._abort_start and self._connection == STATE_CONNECTED:
+            # Make decision - all in same critical section
+            if aborted:
+                # stop() was called - already marked as failed(stopped)
+                return_msg = FAILURE_MESSAGES[FAILURE_STOPPED]
+            elif reply is None:
+                # No reply - timeout or disconnect
+                if self._status == STATUS_COMPLETED:
+                    failure = FAILURE_START_NO_REPLY if connected else FAILURE_START_DISCONNECTED
+                    self._set_status_locked(STATUS_FAILED, failure)
+                return_msg = FAILURE_MESSAGES[self._failure or (FAILURE_START_NO_REPLY if connected else FAILURE_START_DISCONNECTED)]
+            elif isinstance(reply, dict) and reply.get("success") is True:
+                # Success reply
+                if connected:
                     self._set_status_locked(STATUS_LOADING)
+                    return_msg = None
                 else:
-                    # Conditions changed - handle as failure
-                    if self._abort_start:
-                        return_value = FAILURE_MESSAGES[FAILURE_STOPPED]
-                    elif self._connection != STATE_CONNECTED:
-                        if self._status == STATUS_COMPLETED:
-                            self._set_status_locked(STATUS_FAILED, FAILURE_START_DISCONNECTED)
-                        return_value = FAILURE_MESSAGES[FAILURE_START_DISCONNECTED]
-                    else:
-                        # Status is not COMPLETED (shouldn't happen but be safe)
-                        return_value = FAILURE_MESSAGES[self._failure] if self._failure else "R2が待機中ではありません"
-            self._publish()
-            return return_value
-        return self._fail_start(FAILURE_START_REJECTED)
+                    # Disconnected - only record if still at COMPLETED
+                    if self._status == STATUS_COMPLETED:
+                        self._set_status_locked(STATUS_FAILED, FAILURE_START_DISCONNECTED)
+                    return_msg = FAILURE_MESSAGES[FAILURE_START_DISCONNECTED]
+            else:
+                # reply indicates failure
+                if self._status == STATUS_COMPLETED:
+                    self._set_status_locked(STATUS_FAILED, FAILURE_START_REJECTED)
+                return_msg = FAILURE_MESSAGES[self._failure or FAILURE_START_REJECTED]
+
+        self._publish()
+        return return_msg
 
     def _fail_start(self, failure):
         with self._cond:

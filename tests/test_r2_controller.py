@@ -424,24 +424,25 @@ def test_concurrent_disconnect_after_success_reply():
     assert reason  # Should have a failure message
 
 
-def test_concurrent_stop_after_success_reply():
-    """Test that stop() between reply and LOADING status setting fails the start.
+def test_stop_before_reply_processing_leaves_failed():
+    """Test that stop() before reply is examined preserves failed(stopped) status.
 
-    This covers a race condition where stop() is called after the success
-    reply is received but before the status transitions to LOADING.
+    If stop() is called while waiting for a reply, even if a success reply arrives,
+    the abort_start check must cause the start to fail with STOPPED, not LOADING.
+    The abort_start flag set by stop() takes precedence over any success reply.
     """
     link, controller = make_controller()
 
     def on_send_with_stop(obj):
         if obj["type"] == "play_navigation5":
             # Send success reply, then call stop
-            # This creates a race window between reply processing and status transition
+            # stop() sets abort_start=True, which will be checked before using the reply
             link.receive(reply(True))
             controller.stop()
 
     link.on_send = on_send_with_stop
 
-    # Start should fail due to stop, not succeed
+    # Start should fail due to stop, not succeed with LOADING
     reason = controller.start_load_drink()
 
     snap = controller.snapshot()
