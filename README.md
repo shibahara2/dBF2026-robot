@@ -291,7 +291,6 @@ spark-3a50 は 10.17.2.171、spark-60c9 は 10.17.4.171。
 | `THEMIS_VLM_MODE` | `real` | `real` | `mock` | `mock` |
 | `PF_BASE_URL` | `https://reception.robility-system-stg.com` | 同左 | `http://localhost:5002` | 同左 |
 | `PF_API_KEY` | AI管制PF から発行されたキー | 同左 | `mock-api-key` | 同左 |
-| `PF_PROXY_URL` | 必要な網だけ設定 | 同左 | 空 | 空 |
 | `VLM_BACKEND_URL` | `http://localhost:8080/v1` | 同左 | 同左 | 同左 |
 | voice_ui の `FLASK_BASE_URL` | `http://10.17.2.171:5100` | 設定しない | `http://10.17.2.171:5100` | 設定しない |
 | voice_ui の `DIALOGUE_LLM_URL` | `http://10.17.2.171:8080/v1` | 設定しない | `http://10.17.2.171:8080/v1` | 設定しない |
