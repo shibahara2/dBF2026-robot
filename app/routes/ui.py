@@ -14,6 +14,6 @@ def index():
 def debug():
     return render_template(
         "debug.html",
-        r2_base_url=config.R2_BASE_URL,
+        r2_ws_url=config.R2_WS_URL,
         pf_base_url=config.PF_BASE_URL,
     )

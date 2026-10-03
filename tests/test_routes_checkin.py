@@ -35,13 +35,11 @@ RECORDS = [
 
 
 class FakeRunner:
-    def __init__(self, checkin_result=True, reset_result=True, skip_result=True):
+    def __init__(self, checkin_result=True, reset_result=True):
         self.checkin_result = checkin_result
         self.reset_result = reset_result
-        self.skip_result = skip_result
         self.checkin_calls = []
         self.reset_calls = 0
-        self.skip_calls = 0
 
     def request_checkin(self, name):
         self.checkin_calls.append(name)
@@ -50,10 +48,6 @@ class FakeRunner:
     def request_reset(self):
         self.reset_calls += 1
         return self.reset_result
-
-    def request_skip_load_drink(self):
-        self.skip_calls += 1
-        return self.skip_result
 
 
 def make_client(runner, store=None):
@@ -200,23 +194,10 @@ def test_reset_rejected_when_not_in_error():
     assert resp.status_code == 409
 
 
-def test_skip_load_drink_accepted():
-    runner = FakeRunner(skip_result=True)
-    client = make_client(runner)
+def test_skip_load_drink_endpoint_is_gone():
+    client = make_client(FakeRunner())
 
-    resp = client.post("/api/debug/skip-load-drink")
-
-    assert resp.status_code == 200
-    assert runner.skip_calls == 1
-
-
-def test_skip_load_drink_rejected_when_not_sending_load_drink():
-    runner = FakeRunner(skip_result=False)
-    client = make_client(runner)
-
-    resp = client.post("/api/debug/skip-load-drink")
-
-    assert resp.status_code == 409
+    assert client.post("/api/debug/skip-load-drink").status_code == 404
 
 
 @pytest.mark.parametrize("body", [{}, {"name": "田中太郎"}])

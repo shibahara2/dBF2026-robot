@@ -77,7 +77,7 @@ def test_debug_page_shows_connection_targets():
     resp = client.get("/debug")
 
     assert resp.status_code == 200
-    assert b'id="r2-base-url"' in resp.data
+    assert b'id="r2-ws-url"' in resp.data
     assert b'id="pf-base-url"' in resp.data
 
 

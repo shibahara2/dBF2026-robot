@@ -4,20 +4,26 @@ import time
 from app import create_app
 
 
-class FakeR2Client:
-    """Mirrors the real R2Client/r2_mock contract: get_status() returns
-    "none" as the request_id until a command has been posted, then echoes
-    back whatever request_id was last posted via post_load_drink()."""
+class FakeR2Controller:
+    """An R2 that is always connected and loads the drink instantly."""
 
     def __init__(self):
-        self._request_id = "none"
+        self.listeners = []
 
-    def get_status(self):
-        return {"outcome": "completed", "request_id": self._request_id}
+    def snapshot(self):
+        return {"connection": "connected", "status": "completed", "starting": False,
+                "failure": None, "failure_message": None}
 
-    def post_load_drink(self, request_id):
-        self._request_id = request_id
-        return "accepted"
+    def wait_until(self, predicate):
+        snap = self.snapshot()
+        assert predicate(snap)
+        return snap
+
+    def start_load_drink(self):
+        return None
+
+    def add_listener(self, listener):
+        self.listeners.append(listener)
 
 
 class FakePFClient:
@@ -38,7 +44,7 @@ def wait_until(predicate, timeout=2.0):
 
 
 def test_checkin_then_events_reflect_state_machine_progress():
-    app = create_app(r2_client=FakeR2Client(), pf_client=FakePFClient())
+    app = create_app(r2_controller=FakeR2Controller(), pf_client=FakePFClient())
     client = app.test_client()
     state_machine = app.config["STATE_MACHINE"]
 
@@ -65,7 +71,7 @@ def test_checkin_then_events_reflect_state_machine_progress():
 
 
 def test_second_checkin_is_rejected_immediately_after_first():
-    app = create_app(r2_client=FakeR2Client(), pf_client=FakePFClient())
+    app = create_app(r2_controller=FakeR2Controller(), pf_client=FakePFClient())
     client = app.test_client()
 
     first = client.post("/api/checkin", json={"reservation_id": "RSV-0001"})
@@ -76,7 +82,7 @@ def test_second_checkin_is_rejected_immediately_after_first():
 
 
 def test_search_then_checkin_against_the_seeded_reservations():
-    app = create_app(r2_client=FakeR2Client(), pf_client=FakePFClient())
+    app = create_app(r2_controller=FakeR2Controller(), pf_client=FakePFClient())
     client = app.test_client()
     state_machine = app.config["STATE_MACHINE"]
 
@@ -108,7 +114,7 @@ def test_search_then_checkin_against_the_seeded_reservations():
 
 
 def test_index_route_served_through_app_factory():
-    app = create_app(r2_client=FakeR2Client(), pf_client=FakePFClient())
+    app = create_app(r2_controller=FakeR2Controller(), pf_client=FakePFClient())
     client = app.test_client()
 
     resp = client.get("/")
@@ -121,7 +127,7 @@ def test_index_route_served_through_app_factory():
 
 
 def test_voice_start_blocked_while_kiosk_user_is_selecting():
-    app = create_app(r2_client=FakeR2Client(), pf_client=FakePFClient())
+    app = create_app(r2_controller=FakeR2Controller(), pf_client=FakePFClient())
     client = app.test_client()
     state_machine = app.config["STATE_MACHINE"]
 
@@ -137,7 +143,7 @@ def test_entry_idle_seconds_comes_from_config(monkeypatch):
     from app import config
 
     monkeypatch.setattr(config, "ENTRY_IDLE_SECONDS", 0.0)
-    app = create_app(r2_client=FakeR2Client(), pf_client=FakePFClient())
+    app = create_app(r2_controller=FakeR2Controller(), pf_client=FakePFClient())
     client = app.test_client()
     app.config["STATE_MACHINE"].record_kiosk_stage("start")
 
@@ -146,7 +152,7 @@ def test_entry_idle_seconds_comes_from_config(monkeypatch):
 
 
 def test_kiosk_flow_records_entry_through_checkin():
-    app = create_app(r2_client=FakeR2Client(), pf_client=FakePFClient())
+    app = create_app(r2_controller=FakeR2Controller(), pf_client=FakePFClient())
     client = app.test_client()
     state_machine = app.config["STATE_MACHINE"]
 
@@ -164,7 +170,7 @@ def test_kiosk_flow_records_entry_through_checkin():
 
 
 def test_back_to_start_clears_visual_entry():
-    app = create_app(r2_client=FakeR2Client(), pf_client=FakePFClient())
+    app = create_app(r2_controller=FakeR2Controller(), pf_client=FakePFClient())
     client = app.test_client()
 
     client.post("/api/visual/start", json={})
@@ -175,10 +181,22 @@ def test_back_to_start_clears_visual_entry():
 
 
 def test_voice_turns_are_wired_into_app_factory():
-    app = create_app(r2_client=FakeR2Client(), pf_client=FakePFClient())
+    app = create_app(r2_controller=FakeR2Controller(), pf_client=FakePFClient())
     client = app.test_client()
 
     assert client.post(
         "/api/voice/turns", json={"text": "こんにちは", "outcome": "chat", "reply": "こんにちは。"}
     ).status_code == 202
     assert client.get("/api/voice/turns").get_json()["turns"][0]["text"] == "こんにちは"
+
+
+def test_default_app_builds_an_r2_link_without_starting_it_when_asked(monkeypatch):
+    from app import config
+
+    monkeypatch.setattr(config, "R2_WS_URL", "ws://r2.test:9002/realtime")
+    app = create_app(pf_client=FakePFClient(), start_r2=False)
+
+    link = app.config["R2_LINK"]
+    assert link.url == "ws://r2.test:9002/realtime"
+    assert link.state()[0] == "stopped"
+    assert app.config["R2_CONTROLLER"].snapshot()["status"] == "completed"

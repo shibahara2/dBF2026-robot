@@ -2,30 +2,46 @@ import importlib
 import os
 
 
+R2_ENV = (
+    "R2_WS_URL",
+    "R2_START_REPLY_TIMEOUT_SECONDS",
+    "R2_WS_RECONNECT_DELAY_SECONDS",
+    "R2_WS_CONNECT_TIMEOUT_SECONDS",
+)
+
+
 def test_defaults_when_env_not_set(monkeypatch, tmp_path):
-    monkeypatch.delenv("R2_BASE_URL", raising=False)
-    monkeypatch.delenv("PF_BASE_URL", raising=False)
-    monkeypatch.delenv("PF_API_KEY", raising=False)
-    monkeypatch.delenv("PF_PROXY_URL", raising=False)
-    monkeypatch.delenv("POLL_INTERVAL_SECONDS", raising=False)
-    monkeypatch.delenv("HTTP_TIMEOUT_SECONDS", raising=False)
+    for name in R2_ENV + (
+        "PF_BASE_URL",
+        "PF_API_KEY",
+        "PF_PROXY_URL",
+        "POLL_INTERVAL_SECONDS",
+        "HTTP_TIMEOUT_SECONDS",
+    ):
+        monkeypatch.delenv(name, raising=False)
     monkeypatch.chdir(tmp_path)
 
     from app import config
     importlib.reload(config)
 
-    assert config.R2_BASE_URL == "http://localhost:5001"
+    assert config.R2_WS_URL == "ws://127.0.0.1:9002/realtime"
+    assert config.R2_START_REPLY_TIMEOUT_SECONDS == 15.0
+    assert config.R2_WS_RECONNECT_DELAY_SECONDS == 1.0
+    assert config.R2_WS_CONNECT_TIMEOUT_SECONDS == 5.0
     assert config.PF_BASE_URL == "http://localhost:5002"
     assert config.PF_API_KEY == ""
     assert config.PF_PROXY_URL == ""
     assert config.POLL_INTERVAL_SECONDS == 2.0
     assert config.HTTP_TIMEOUT_SECONDS == 5.0
-    assert config.DRINK_TYPE == "water"
-    assert config.TARGET_ROBOT_ID == "temi"
+    for removed in ("R2_BASE_URL", "DRINK_TYPE", "TARGET_ROBOT_ID"):
+        assert not hasattr(config, removed)
 
 
 def test_env_overrides(monkeypatch, tmp_path):
-    monkeypatch.setenv("R2_BASE_URL", "http://r2.example.com")
+    monkeypatch.setenv("R2_WS_URL", "ws://10.17.4.171:9002/realtime")
+    monkeypatch.setenv("R2_START_REPLY_TIMEOUT_SECONDS", "20")
+    monkeypatch.setenv("R2_WS_RECONNECT_DELAY_SECONDS", "2")
+    monkeypatch.setenv("R2_WS_CONNECT_TIMEOUT_SECONDS", "3")
     monkeypatch.setenv("PF_BASE_URL", "http://pf.example.com")
     monkeypatch.setenv("PF_API_KEY", "test-key")
     monkeypatch.setenv("PF_PROXY_URL", "http://115.69.226.50:8080")
@@ -36,7 +52,10 @@ def test_env_overrides(monkeypatch, tmp_path):
     from app import config
     importlib.reload(config)
 
-    assert config.R2_BASE_URL == "http://r2.example.com"
+    assert config.R2_WS_URL == "ws://10.17.4.171:9002/realtime"
+    assert config.R2_START_REPLY_TIMEOUT_SECONDS == 20.0
+    assert config.R2_WS_RECONNECT_DELAY_SECONDS == 2.0
+    assert config.R2_WS_CONNECT_TIMEOUT_SECONDS == 3.0
     assert config.PF_BASE_URL == "http://pf.example.com"
     assert config.PF_API_KEY == "test-key"
     assert config.PF_PROXY_URL == "http://115.69.226.50:8080"
@@ -45,7 +64,6 @@ def test_env_overrides(monkeypatch, tmp_path):
 
 
 def test_dotenv_values_are_loaded(monkeypatch, tmp_path):
-    monkeypatch.delenv("R2_BASE_URL", raising=False)
     monkeypatch.delenv("PF_BASE_URL", raising=False)
     monkeypatch.delenv("PF_API_KEY", raising=False)
     monkeypatch.chdir(tmp_path)
