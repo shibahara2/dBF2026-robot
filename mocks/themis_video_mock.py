@@ -1,4 +1,4 @@
-"""Local WebSocket server that mimics Themis' periodic binary video relay."""
+"""Local WebSocket server that mimics Themis' gamepad-server (video and /realtime)."""
 
 from __future__ import annotations
 
@@ -6,6 +6,8 @@ import argparse
 import asyncio
 from dataclasses import dataclass
 from pathlib import Path
+
+from mocks.r2_realtime_mock import R2RealtimeMock
 
 
 DEFAULT_IMAGE_PATH = Path(__file__).resolve().parents[1] / "person.png"
@@ -33,10 +35,11 @@ async def serve_mock(
     host: str = "127.0.0.1",
     port: int = 9002,
     config: MockThemisVideoConfig | None = None,
+    realtime=None,
 ) -> None:
     try:
         import websockets
-        from websockets.exceptions import ConnectionClosedOK
+        from websockets.exceptions import ConnectionClosed
     except ImportError as exc:  # pragma: no cover - deployment dependency
         raise RuntimeError("websockets is required for the mock server") from exc
 
@@ -44,11 +47,18 @@ async def serve_mock(
     payload = make_payload(active_config)
 
     async def handler(websocket):
+        # Like the real gamepad-server, one port serves /realtime and video.
+        if realtime is not None and websocket.path == "/realtime":
+            try:
+                await realtime.handle(websocket)
+            except ConnectionClosed:
+                pass
+            return
         try:
             while True:
                 await websocket.send(payload)
                 await asyncio.sleep(active_config.interval_seconds)
-        except ConnectionClosedOK:
+        except ConnectionClosed:
             return
 
     async with websockets.serve(handler, host, port):
@@ -66,6 +76,7 @@ def main() -> None:
             args.host,
             args.port,
             MockThemisVideoConfig(interval_seconds=args.interval),
+            realtime=R2RealtimeMock.from_env(),
         )
     )
 

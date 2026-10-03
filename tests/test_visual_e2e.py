@@ -18,7 +18,7 @@ from themis_video.vlm import VLMClient
 
 
 def test_video_yes_decision_starts_search_without_checkin(caplog):
-    app = create_app()
+    app = create_app(start_r2=False)
     vlm_app = create_vlm_mock(decision=True)
     with socket.socket() as available_port:
         available_port.bind(("127.0.0.1", 0))

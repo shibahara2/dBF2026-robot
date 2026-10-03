@@ -11,7 +11,7 @@
 
     <h2 class="section-label">接続先</h2>
     <dl id="connection-targets">
-      <dt>R2 (Humanoid)</dt><dd id="r2-base-url">{{ r2_base_url }}</dd>
+      <dt>R2 (Humanoid)</dt><dd id="r2-ws-url">{{ r2_ws_url }}</dd>
       <dt>AI管制PF</dt><dd id="pf-base-url">{{ pf_base_url }}</dd>
     </dl>
 
@@ -24,13 +24,37 @@
 
     <div id="debug-error" hidden>
       <p id="debug-error-message"></p>
+      <button type="button" id="state-machine-reset">ステートマシンをリセット</button>
     </div>
 
-    <h2 class="section-label">手動操作</h2>
-    <div id="manual-controls">
-      <button type="button" id="skip-load-drink" disabled>POST load-drink をスキップして次へ</button>
-      <span id="skip-load-drink-result"></span>
-      <p class="manual-hint">R2がload-drinkを受理しない（リトライ中・エラー）ときに、受理されたものとして「GET load-drink/status (poll)」へ進めます。</p>
+    <h2 class="section-label">R2</h2>
+    <div id="r2-panel" class="r2-connection-disconnected">
+      <div class="r2-row">
+        <span id="r2-connection" class="r2-badge">-</span>
+        <span class="r2-at">（<span id="r2-connection-at">-</span> から）</span>
+        <button type="button" id="r2-toggle-connection">接続</button>
+      </div>
+      <dl class="r2-fields">
+        <dt>status</dt><dd><span id="r2-status">-</span> <span class="r2-at"><span id="r2-status-at">-</span> に変化</span></dd>
+        <dt>failed の理由</dt><dd id="r2-failure">-</dd>
+        <dt>under_mode</dt><dd><span id="r2-under-mode">-</span> <span class="r2-at"><span id="r2-under-mode-at">-</span> に変化</span></dd>
+        <dt>開始の返事</dt><dd id="r2-last-reply">-</dd>
+      </dl>
+      <div class="r2-buttons">
+        <button type="button" id="r2-stop" class="r2-danger">STOP</button>
+        <button type="button" id="r2-resend">開始を再送</button>
+        <button type="button" id="r2-mark-returning">returning にする</button>
+        <button type="button" id="r2-mark-completed">completed にする</button>
+        <button type="button" id="r2-mark-failed">failed にする</button>
+        <button type="button" id="r2-reset">R2 を初期状態に戻す</button>
+      </div>
+      <div id="r2-confirm" hidden>
+        <p id="r2-confirm-message"></p>
+        <button type="button" id="r2-confirm-yes">実行する</button>
+        <button type="button" id="r2-confirm-no">やめる</button>
+      </div>
+      <p id="r2-hint"></p>
+      <p id="r2-result"></p>
     </div>
 
     <h2 class="section-label">GETステータス最新取得</h2>
@@ -39,11 +63,6 @@
         <span class="get-status-label">PF: GET guide-robot/status</span>
         <span class="get-status-value" id="pf-status-value">-</span>
         <span class="get-status-at">取得時刻: <span id="pf-status-at">-</span></span>
-      </div>
-      <div class="get-status-row">
-        <span class="get-status-label">R2: GET load-drink/status</span>
-        <span class="get-status-value" id="r2-status-value">-</span>
-        <span class="get-status-at">取得時刻: <span id="r2-status-at">-</span></span>
       </div>
       <div class="get-status-row">
         <span class="get-status-label">現在時刻</span>
@@ -129,25 +148,25 @@
           <text x="385" y="162">status = Ready</text>
         </g>
 
-        <g id="arrow-polling_r2_ready" class="arrow">
+        <g id="arrow-waiting_r2_ready" class="arrow">
           <line class="msg-request" x1="280" y1="220" x2="700" y2="220" marker-end="url(#arrowhead)"></line>
-          <text x="490" y="212">GET load-drink/status</text>
+          <text x="490" y="212">WebSocket /realtime 接続を確認</text>
           <line class="msg-response" x1="700" y1="250" x2="280" y2="250" marker-end="url(#arrowhead)"></line>
-          <text x="490" y="242">status = completed</text>
+          <text x="490" y="242">接続中 かつ status = completed</text>
         </g>
 
-        <g id="arrow-sending_load_drink" class="arrow">
+        <g id="arrow-starting_r2" class="arrow">
           <line class="msg-request" x1="280" y1="300" x2="700" y2="300" marker-end="url(#arrowhead)"></line>
-          <text x="490" y="292">POST load-drink</text>
+          <text x="490" y="292">gamepad NAVIGATION → play_navigation5(true)</text>
           <line class="msg-response" x1="700" y1="330" x2="280" y2="330" marker-end="url(#arrowhead)"></line>
-          <text x="490" y="322">200 OK</text>
+          <text x="490" y="322">play_navigation5_rp success</text>
         </g>
 
-        <g id="arrow-polling_r2_active" class="arrow">
-          <line class="msg-request" x1="280" y1="380" x2="700" y2="380" marker-end="url(#arrowhead)"></line>
-          <text x="490" y="372">GET load-drink/status (poll)</text>
+        <g id="arrow-waiting_r2_placed" class="arrow">
+          <line class="msg-response" x1="700" y1="380" x2="280" y2="380" marker-end="url(#arrowhead)"></line>
+          <text x="490" y="372">robot_aggregator（under_mode）</text>
           <line class="msg-response" x1="700" y1="410" x2="280" y2="410" marker-end="url(#arrowhead)"></line>
-          <text x="490" y="402">status = returning/completed</text>
+          <text x="490" y="402">under_mode _m5 → returning</text>
         </g>
 
         <g id="arrow-notifying_pf_placed" class="arrow">

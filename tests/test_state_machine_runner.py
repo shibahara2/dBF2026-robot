@@ -4,18 +4,23 @@ import time
 from app.state_machine import StateMachine, StateMachineRunner, PHASE_WAITING, STEP_AWAITING_CHECKIN
 
 
-class FakeR2Client:
-    def __init__(self, status_sequence, load_drink_result="accepted"):
-        self._status_sequence = list(status_sequence)
-        self.load_drink_result = load_drink_result
+class FakeR2:
+    def __init__(self, status="completed", start_result=None):
+        self.status = status
+        self.start_result = start_result
 
-    def get_status(self):
-        if len(self._status_sequence) > 1:
-            return self._status_sequence.pop(0)
-        return self._status_sequence[0]
+    def wait_until(self, predicate):
+        while True:
+            snap = {"connection": "connected", "status": self.status, "starting": False,
+                    "failure": None, "failure_message": None}
+            if predicate(snap):
+                return snap
+            time.sleep(0.01)
 
-    def post_load_drink(self, request_id):
-        return self.load_drink_result
+    def start_load_drink(self):
+        if self.start_result is None:
+            self.status = "returning"
+        return self.start_result
 
 
 class FakePFClient:
@@ -47,15 +52,17 @@ def wait_until(predicate, timeout=2.0):
     return False
 
 
-def test_request_checkin_runs_cycle_in_background_thread():
-    r2 = FakeR2Client(
-        status_sequence=[
-            {"outcome": "completed", "request_id": "none"},
-            {"outcome": "completed", "request_id": None},
-        ]
+def make_machine(r2, pf=None):
+    return StateMachine(
+        r2_controller=r2,
+        pf_client=pf or FakePFClient(["ready"]),
+        on_change=lambda snap: None,
+        sleep=lambda s: None,
     )
-    pf = FakePFClient(["ready"])
-    sm = StateMachine(r2_client=r2, pf_client=pf, on_change=lambda snap: None, sleep=lambda s: None)
+
+
+def test_request_checkin_runs_cycle_in_background_thread():
+    sm = make_machine(FakeR2())
     runner = StateMachineRunner(sm)
     start_runner_thread(runner)
 
@@ -68,9 +75,7 @@ def test_request_checkin_runs_cycle_in_background_thread():
 
 
 def test_request_checkin_rejected_while_cycle_in_progress():
-    r2 = FakeR2Client(status_sequence=[{"outcome": "loading", "request_id": "none"}])
-    pf = FakePFClient(["ready"])
-    sm = StateMachine(r2_client=r2, pf_client=pf, on_change=lambda snap: None, sleep=lambda s: None)
+    sm = make_machine(FakeR2(status="loading"))
     runner = StateMachineRunner(sm)
     start_runner_thread(runner)
 
@@ -81,9 +86,7 @@ def test_request_checkin_rejected_while_cycle_in_progress():
 
 
 def test_request_reset_is_synchronous_and_does_not_need_the_thread():
-    r2 = FakeR2Client(status_sequence=[{"outcome": "failed", "request_id": "none"}])
-    pf = FakePFClient(["ready"])
-    sm = StateMachine(r2_client=r2, pf_client=pf, on_change=lambda snap: None, sleep=lambda s: None)
+    sm = make_machine(FakeR2(status="failed"))
     runner = StateMachineRunner(sm)
     start_runner_thread(runner)
 
@@ -103,9 +106,7 @@ class RaisingPFClient:
 
 
 def test_unexpected_exception_in_cycle_does_not_wedge_the_thread():
-    r2 = FakeR2Client(status_sequence=[{"outcome": "completed", "request_id": "none"}])
-    pf = RaisingPFClient()
-    sm = StateMachine(r2_client=r2, pf_client=pf, on_change=lambda snap: None, sleep=lambda s: None)
+    sm = make_machine(FakeR2(), RaisingPFClient())
     runner = StateMachineRunner(sm)
     start_runner_thread(runner)
 
@@ -123,43 +124,29 @@ def test_unexpected_exception_in_cycle_does_not_wedge_the_thread():
 
 
 def test_request_reset_rejected_when_not_in_error():
-    sm = StateMachine(
-        r2_client=FakeR2Client([{"outcome": "completed", "request_id": "none"}]),
-        pf_client=FakePFClient(["ready"]),
-        on_change=lambda snap: None,
-    )
-    runner = StateMachineRunner(sm)
+    runner = StateMachineRunner(make_machine(FakeR2()))
     assert runner.request_reset() is False
 
 
-def test_request_skip_load_drink_resumes_a_failed_cycle_on_the_thread():
-    r2 = FakeR2Client(
-        status_sequence=[
-            {"outcome": "completed", "request_id": "none"},
-            {"outcome": "completed", "request_id": "OLD"},
-        ],
-        load_drink_result="server_error",
-    )
-    pf = FakePFClient(["ready"])
-    sm = StateMachine(r2_client=r2, pf_client=pf, on_change=lambda snap: None, sleep=lambda s: None)
+def test_request_resume_after_start_continues_a_failed_start_on_the_thread():
+    r2 = FakeR2(start_result="R2から開始の返事がありませんでした")
+    sm = make_machine(r2)
     runner = StateMachineRunner(sm)
     start_runner_thread(runner)
 
     runner.request_checkin("Tanaka")
     assert wait_until(lambda: sm.snapshot()["phase"] == "error")
+    assert runner.can_resume_after_start() is True
 
-    assert runner.request_skip_load_drink() is True
+    r2.status = "returning"  # the operator's resend succeeded
+    assert runner.request_resume_after_start() is True
     assert wait_until(
         lambda: sm.snapshot()["phase"] == PHASE_WAITING
         and sm.snapshot()["step"] == STEP_AWAITING_CHECKIN
     )
 
 
-def test_request_skip_load_drink_rejected_when_idle():
-    sm = StateMachine(
-        r2_client=FakeR2Client([{"outcome": "completed", "request_id": "none"}]),
-        pf_client=FakePFClient(["ready"]),
-        on_change=lambda snap: None,
-    )
-    runner = StateMachineRunner(sm)
-    assert runner.request_skip_load_drink() is False
+def test_request_resume_after_start_rejected_when_idle():
+    runner = StateMachineRunner(make_machine(FakeR2()))
+    assert runner.can_resume_after_start() is False
+    assert runner.request_resume_after_start() is False
