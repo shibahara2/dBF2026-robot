@@ -240,7 +240,13 @@ function renderR2(snapshot) {
   r2LastReply.textContent = formatReply(snapshot);
   Object.entries(R2_BUTTONS).forEach(([id, spec]) => {
     const button = document.getElementById(id);
-    button.disabled = snapshot.starting || !spec.enabled(snapshot);
+    if (id === "r2-stop") {
+      // STOP can be pressed during a start; only check its enabled rule.
+      button.disabled = !spec.enabled(snapshot);
+    } else {
+      // Other buttons are disabled while starting.
+      button.disabled = snapshot.starting || !spec.enabled(snapshot);
+    }
     button.title = button.disabled ? spec.hint : "";
   });
   r2Hint.textContent = Object.entries(R2_BUTTONS)

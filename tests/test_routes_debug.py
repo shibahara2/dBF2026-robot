@@ -203,3 +203,14 @@ def test_debug_sequence_diagram_describes_the_websocket_exchange():
     assert "under_mode" in text
     assert "GET load-drink/status" not in text
     assert "POST load-drink" not in text
+
+
+def test_debug_js_stop_button_is_not_disabled_by_starting():
+    source = (Path(__file__).parents[1] / "app" / "static" / "debug.js").read_text()
+
+    # STOP button must not be guarded by snapshot.starting, only by its enabled rule.
+    # The pattern shows STOP is handled separately from other buttons.
+    assert re.search(
+        r'if \(id === "r2-stop"\)',
+        source,
+    )
