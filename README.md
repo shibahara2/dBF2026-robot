@@ -210,6 +210,42 @@ sudo iptables -A FORWARD -s 192.168.0.11 -d 10.17.2.171 -m state --state ESTABLI
 
 **確認**：spark-3a50 で `.venv/bin/python -c "import websocket; websocket.create_connection('ws://10.17.4.171:9002/realtime', timeout=5).close(); print('ok')"`
 
+### spark-60c9 で Flask（ステートマシン）を動かす場合
+
+基本は spark-3a50 で動かす。spark-3a50 が使えないときは、spark-60c9 で Flask も
+動かせる。spark-60c9 は THEMIS_5G でロボットに直接つながっているので、上の転送は要らない。
+コードの変更も要らず、spark-60c9 の `.env`（git 管理外）を次のように書き換えるだけでよい。
+
+```
+R2_WS_URL=ws://192.168.0.11:9002/realtime
+THEMIS_WS_URL=ws://192.168.0.11:9002/zed2i
+VISUAL_TRIGGER_URL=http://127.0.0.1:5100/api/visual/start
+PF_BASE_URL=https://reception.robility-system-stg.com
+PF_API_KEY=<spark-3a50 と同じ値>
+VLM_BACKEND_URL=http://<LLM のホスト>:8080/v1
+```
+
+**切り替えの手順**
+
+1. R2 が A で止まっていて（`/debug` で status が `completed`）、チェックインが進行中でないことを確かめる。
+2. **spark-3a50 の Flask を止める**（`pkill -f "\.venv/bin/python run\.py"`）。両方で動かすと、
+   R2 の `/realtime` に2本つながって両方が R2 を操作する。AI管制PF への指示も二重になる。
+3. spark-60c9 が THEMIS_5G につながっていることを確かめる（`ip -4 -br addr` で wlP9s9 が 192.168.0.x）。
+4. 届くかを確かめる：
+   ```
+   .venv/bin/python -c "import websocket; websocket.create_connection('ws://192.168.0.11:9002/realtime', timeout=5).close(); print('ok')"
+   curl -sS -H "X-API-Key: <PF_API_KEY>" https://reception.robility-system-stg.com/api/v1/guide-robot/status
+   ```
+   2行目は、PF にたどり着ければ JSON（キーが違えば 401）が返る。タイムアウトや接続拒否なら届いていない。
+   AI管制PF の stg は、送信元 IP の許可リストで絞られている。spark-60c9 のその時の出口から
+   届くかは、ここで確かめる。
+5. spark-60c9 で起動：`nohup .venv/bin/python run.py > run.log 2>&1 &`
+   （`.env` を変えたら親プロセスごと再起動する）
+6. voice_ui は `FLASK_BASE_URL` を省略してよい（既定が `http://localhost:5100`）。
+   キオスク画面は `http://localhost:5100/` を開く。
+
+spark-3a50 に戻すときは逆の順で、spark-60c9 の Flask を止めてから spark-3a50 の Flask を起動する。
+
 **運用上の注意**
 
 - R2 の status（`completed` / `loading` / `returning` / `failed`）はこのアプリの中に
