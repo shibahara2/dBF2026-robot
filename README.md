@@ -287,11 +287,8 @@ spark-3a50 は 10.17.2.171、spark-60c9 は 10.17.4.171。
 | Flask と LLM の機体 | spark-3a50 | spark-60c9 | spark-3a50 | spark-60c9 |
 | R2 / AI管制PF | 実機 / 本番 | 実機 / 本番 | モック / モック | モック / モック |
 | `R2_WS_URL` | `ws://10.17.4.171:9002/realtime` | `ws://192.168.0.11:9002/realtime` | `ws://127.0.0.1:9002/realtime` | 同左 |
-| `THEMIS_WS_URL` | `ws://10.17.4.171:9002/zed2i` | `ws://192.168.0.11:9002/zed2i` | `ws://127.0.0.1:9002/zed2i` | 同左 |
-| `THEMIS_VLM_MODE` | `real` | `real` | `mock` | `mock` |
 | `PF_BASE_URL` | `https://reception.robility-system-stg.com` | 同左 | `http://localhost:5002` | 同左 |
 | `PF_API_KEY` | AI管制PF から発行されたキー | 同左 | `mock-api-key` | 同左 |
-| `VLM_BACKEND_URL` | `http://localhost:8080/v1` | 同左 | 同左 | 同左 |
 | voice_ui の `FLASK_BASE_URL` | `http://10.17.2.171:5100` | 設定しない | `http://10.17.2.171:5100` | 設定しない |
 | voice_ui の `DIALOGUE_LLM_URL` | `http://10.17.2.171:8080/v1` | 設定しない | `http://10.17.2.171:8080/v1` | 設定しない |
 
@@ -300,6 +297,8 @@ spark-3a50 は 10.17.2.171、spark-60c9 は 10.17.4.171。
 - mock と local mock では、Flask と同じ機体で `run_mocks.py` を起動する。
 - voice_ui は `.env` を読まないので、表の下2行は起動するときに環境変数で渡す。
   「設定しない」は既定値（`localhost:5100` と `localhost:8080/v1`）のままでよいという意味。
+- zed2i の映像から話しかけを検知する仕組み（`tools/run_themis_vlm.py` と vlm_server）は今は
+  使わないので、表に入れていない。音声での会話とチェックインは LLM を直接呼ぶので、これがなくても動く。
 - Flask を動かすのは1台だけにする（「spark-60c9 で Flask（ステートマシン）を動かす場合」）。
 
 ## Environment variables
