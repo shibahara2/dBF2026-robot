@@ -238,6 +238,7 @@ function renderR2(snapshot) {
   r2UnderMode.textContent = snapshot.under_mode || "-";
   r2UnderModeAt.textContent = toSecondsTime(snapshot.under_mode_at);
   r2LastReply.textContent = formatReply(snapshot);
+  renderR2StateDiagram(snapshot);
   Object.entries(R2_BUTTONS).forEach(([id, spec]) => {
     const button = document.getElementById(id);
     if (id === "r2-stop") {
@@ -273,8 +274,85 @@ function toSecondsTime(isoString) {
   });
 }
 
+// Each diagram remembers the state before its latest change, so the arrow
+// that was just taken stays highlighted until the next change.
+const stateHistory = {};
+
+function trackState(name, value) {
+  const history = stateHistory[name] || { current: undefined, previous: null };
+  if (value !== history.current) {
+    history.previous = history.current === undefined ? null : history.current;
+    history.current = value;
+  }
+  stateHistory[name] = history;
+  return history;
+}
+
+function renderStateDiagram(svgId, value) {
+  const { current, previous } = trackState(svgId, value);
+  const svg = document.getElementById(svgId);
+  svg.querySelectorAll(".state").forEach((el) => {
+    el.classList.toggle("current", el.dataset.state.split(" ").includes(current));
+  });
+  svg.querySelectorAll(".transition").forEach((el) => {
+    const from = el.dataset.from.split(" ");
+    const taken =
+      previous !== null &&
+      el.dataset.to.split(" ").includes(current) &&
+      (from.includes("*") || from.includes(previous));
+    el.classList.toggle("last", taken);
+  });
+  return svg;
+}
+
+const smRobotCaption = document.getElementById("sm-robot-caption");
+const smPfCard = document.getElementById("sm-card-pf");
+const smPfCaption = document.getElementById("sm-pf-caption");
+const smR2Card = document.getElementById("sm-card-r2");
+const smR2Connection = document.getElementById("sm-r2-connection");
+const smR2UnderMode = document.getElementById("sm-r2-under-mode");
+const smR2Failure = document.getElementById("sm-r2-failure");
+
+function renderRobotStateDiagram(snapshot) {
+  const failed = snapshot.phase === "error";
+  const svg = renderStateDiagram("sm-robot", failed ? "error" : snapshot.step);
+  // On error, also mark the step the cycle stopped at.
+  svg.querySelectorAll(".state").forEach((el) => {
+    el.classList.toggle("stalled", failed && el.dataset.state === snapshot.step);
+  });
+  smRobotCaption.textContent = `phase = ${snapshot.phase} / step = ${snapshot.step}`;
+}
+
+function renderPfStateDiagram(snapshot) {
+  renderStateDiagram("sm-pf", snapshot.pf_status || "none");
+  // PF is only asked while the platform waits for Ready.
+  const watching = snapshot.step === "polling_pf_ready" && snapshot.phase !== "error";
+  smPfCard.classList.toggle("stale", !watching);
+  if (!snapshot.pf_status_at) {
+    smPfCaption.textContent = "まだ取得していません（PF Ready 待ちで取得します）";
+    return;
+  }
+  const at = `取得 ${toSecondsTime(snapshot.pf_status_at)}`;
+  smPfCaption.textContent = watching
+    ? `${at}（基盤がポーリング中）`
+    : `${at}（ポーリングしていないので最後に見た値）`;
+}
+
+function renderR2StateDiagram(snapshot) {
+  renderStateDiagram("sm-r2", snapshot.status);
+  document.getElementById("sm-r2-start").classList.toggle("pending", snapshot.starting);
+  smR2Card.classList.toggle("offline", snapshot.connection !== "connected");
+  smR2Connection.textContent = CONNECTION_LABELS[snapshot.connection] || snapshot.connection;
+  smR2UnderMode.textContent = snapshot.under_mode
+    ? `${snapshot.under_mode}（${toSecondsTime(snapshot.under_mode_at)}）`
+    : "-";
+  smR2Failure.textContent = snapshot.failure ? snapshot.failure_message : "-";
+}
+
 function render(snapshot) {
   renderEntry(snapshot);
+  renderRobotStateDiagram(snapshot);
+  renderPfStateDiagram(snapshot);
 
   statusPhase.textContent = snapshot.phase;
   statusStep.textContent = snapshot.step;

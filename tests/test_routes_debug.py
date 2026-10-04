@@ -214,3 +214,82 @@ def test_debug_js_stop_button_is_not_disabled_by_starting():
         r'if \(id === "r2-stop"\)',
         source,
     )
+
+
+def _svg(text, svg_id):
+    match = re.search(rf'<svg id="{svg_id}".*?</svg>', text, re.S)
+    assert match, f"svg {svg_id} not found"
+    return match.group(0)
+
+
+def _state_nodes(svg):
+    return {
+        state
+        for value in re.findall(r'class="state[^"]*" data-state="([^"]+)"', svg)
+        for state in value.split()
+    }
+
+
+def test_debug_page_has_state_diagrams_for_three_parties():
+    text = make_client().get("/debug").data.decode()
+
+    assert 'id="state-diagrams"' in text
+    assert text.index('id="state-diagrams"') < text.index('id="sequence-diagram"')
+    assert _state_nodes(_svg(text, "sm-robot")) == {
+        "awaiting_checkin",
+        "polling_pf_ready",
+        "waiting_r2_ready",
+        "starting_r2",
+        "waiting_r2_placed",
+        "notifying_pf_placed",
+        "error",
+    }
+    assert _state_nodes(_svg(text, "sm-r2")) == {
+        "completed",
+        "loading",
+        "returning",
+        "failed",
+    }
+    assert _state_nodes(_svg(text, "sm-pf")) == {
+        "none",
+        "initializing",
+        "ready",
+        "timeout",
+        "retryable_error",
+        "fatal_error",
+    }
+
+
+def test_r2_state_diagram_labels_transitions_with_under_mode():
+    svg = _svg(make_client().get("/debug").data.decode(), "sm-r2")
+
+    assert re.search(r'data-from="loading" data-to="returning".*?_m5', svg, re.S)
+    assert re.search(r'data-from="returning" data-to="completed".*?_m1', svg, re.S)
+    for element_id in ["sm-r2-connection", "sm-r2-under-mode", "sm-r2-failure"]:
+        assert f'id="{element_id}"' in make_client().get("/debug").data.decode()
+
+
+def test_robot_state_diagram_has_reset_and_resend_from_error():
+    svg = _svg(make_client().get("/debug").data.decode(), "sm-robot")
+
+    assert 'data-from="error" data-to="awaiting_checkin"' in svg
+    assert 'data-from="error" data-to="starting_r2"' in svg
+    assert 'data-from="notifying_pf_placed" data-to="awaiting_checkin"' in svg
+
+
+def test_debug_js_renders_state_diagrams_from_both_streams():
+    source = (Path(__file__).parents[1] / "app" / "static" / "debug.js").read_text()
+
+    assert "function renderStateDiagram(" in source
+    render = re.search(r"function render\(snapshot\) \{(.*?)\n\}", source, re.S).group(1)
+    render_r2 = re.search(r"function renderR2\(snapshot\) \{(.*?)\n\}", source, re.S).group(1)
+    assert "renderRobotStateDiagram(snapshot);" in render
+    assert "renderPfStateDiagram(snapshot);" in render
+    assert "renderR2StateDiagram(snapshot);" in render_r2
+    for svg_id, name in [
+        ("sm-robot", "renderRobotStateDiagram"),
+        ("sm-pf", "renderPfStateDiagram"),
+        ("sm-r2", "renderR2StateDiagram"),
+    ]:
+        body = re.search(rf"function {name}\(snapshot\) \{{(.*?)\n\}}", source, re.S).group(1)
+        assert f'renderStateDiagram("{svg_id}"' in body
