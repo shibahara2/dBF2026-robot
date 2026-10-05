@@ -33,6 +33,9 @@ RELEASE = (
     '"axis":[0,0,0,0,0,0],"combo":[0,0,0,0,0]}}'
 )
 PLAY_TRUE = '{"type":"play_navigation5","data":{"value":true}}'
+# UI-DRP sends ENTER_NAV once. A single frame did not start the robot on site
+# (2026-10-04), so start holds it like STOP holds LEAVE_NAV: four frames, then release.
+START_NAV = [ENTER_NAV] * 4 + [RELEASE]
 PLAY_FALSE = '{"type":"play_navigation5","data":{"value":false}}'
 
 
@@ -131,14 +134,14 @@ def test_initial_snapshot():
     assert snap["under_mode"] is None
 
 
-def test_start_sends_what_ui_drp_sends_and_starts_loading():
+def test_start_holds_the_navigation_combo_and_starts_loading():
     sleeps = []
     link, controller = make_controller(sleeps=sleeps)
     replies_with(link, True)
 
     assert controller.start_load_drink() is None
 
-    assert link.sent == [ENTER_NAV, PLAY_TRUE]
+    assert link.sent == START_NAV + [PLAY_TRUE]
     assert sleeps == [2.0]
     snap = controller.snapshot()
     assert snap["status"] == STATUS_LOADING
@@ -164,7 +167,7 @@ def test_start_without_reply_times_out():
     reason = controller.start_load_drink()
 
     assert reason
-    assert link.sent == [ENTER_NAV, PLAY_TRUE]
+    assert link.sent == START_NAV + [PLAY_TRUE]
     snap = controller.snapshot()
     assert (snap["status"], snap["failure"]) == (STATUS_FAILED, FAILURE_START_NO_REPLY)
 
@@ -367,7 +370,7 @@ def test_resend_requires_a_start_failure_and_m1():
     replies_with(link, True)
     assert controller.resend_start() is None
 
-    assert link.sent == [ENTER_NAV, PLAY_TRUE]
+    assert link.sent == START_NAV + [PLAY_TRUE]
     assert controller.snapshot()["status"] == STATUS_LOADING
 
 
@@ -469,7 +472,7 @@ def test_reconnect_during_the_2s_wait_does_not_send_play_true():
     reason = controller.start_load_drink()
 
     assert reason == FAILURE_MESSAGES[FAILURE_START_DISCONNECTED]
-    assert link.sent == [ENTER_NAV]
+    assert link.sent == START_NAV
     snap = controller.snapshot()
     assert (snap["status"], snap["failure"]) == (STATUS_FAILED, FAILURE_START_DISCONNECTED)
 

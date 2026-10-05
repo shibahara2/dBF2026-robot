@@ -213,11 +213,12 @@ sudo iptables -A FORWARD -s 192.168.0.11 -d 10.17.2.171 -m state --state ESTABLI
 ### R2 に送る指示とコントローラーの操作の対応
 
 UI-DRP が `/realtime` に送る指示と、スマホ（AOS Controller）とゲームパッドでの操作の
-対応。このアプリも同じものを送る（`app/clients/r2_controller.py`）。
+対応。このアプリも同じものを送る（`app/clients/r2_controller.py`）。ただし開始だけは、
+UI-DRP どおりの1回では実機が動かなかったので、停止と同じく4回送ってから離す。
 
 | 操作 | 送るもの | コントローラーでの同じ操作 |
 |---|---|---|
-| 開始（UI-DRP の START、このアプリのチェックイン後） | `gamepad`（ボタンなし、`combo=[0,0,1,0,0]`）を1回 → 2秒待つ → `{"type":"play_navigation5","data":{"value":true}}` | AOS Controller で Navigation Task 1 を ON にしてから Auto Navigation を ON（THEMIS Deployment Manual 4.1） |
+| 開始（UI-DRP の START、このアプリのチェックイン後） | `gamepad`（ボタンなし、`combo=[0,0,1,0,0]`）を4回 → `gamepad`（ボタンなし、`combo=[0,0,0,0,0]`）を1回 → 2秒待つ → `{"type":"play_navigation5","data":{"value":true}}`（UI-DRP は最初の `gamepad` を1回だけ送る） | AOS Controller で Navigation Task 1 を ON にしてから Auto Navigation を ON（THEMIS Deployment Manual 4.1） |
 | 停止（UI-DRP の RESET、`/debug` の STOP） | `gamepad`（BACK と START、`combo=[1,0,0,0,0]`）を4回 → `gamepad`（ボタンなし、`combo=[0,0,0,0,0]`）を1回 → 2秒待つ → `{"type":"play_navigation5","data":{"value":false}}` | ゲームパッドの START + BACK（Standing Mode に戻して止める） |
 | （UI-DRP は送らない） | - | ゲームパッドの START + Y（Walking Mode） |
 

@@ -108,7 +108,7 @@ gamepad(button, combo) = {"type":"gamepad","data":{"button":<16要素>,"axis":[0
 
 | 操作 | UI-DRP の関数 | 送るもの |
 |---|---|---|
-| ナビゲーションに入る | `enterNav` | `gamepad(button=[0]*16, combo=[0,0,1,0,0])` を1回 |
+| ナビゲーションに入る | `enterNav` | `gamepad(button=[0]*16, combo=[0,0,1,0,0])` を1回。**dBF-robot は4回続けて送り、その後 `gamepad([0]*16, [0,0,0,0,0])` を1回送る**（下の注） |
 | ナビゲーションを抜ける | `leaveNav` | `button[8]=button[9]=1`（他は0）、`combo=[1,0,0,0,0]` の gamepad を **4回**続けて送り、その後 `gamepad([0]*16, [0,0,0,0,0])` を1回 |
 | 一連の動作を開始 | `playNavigation5(true)` | `enterNav` → **2秒待つ** → 接続が開いていれば `{"type":"play_navigation5","data":{"value":true}}` |
 | 一連の動作を停止 | `playNavigation5(false)` | `leaveNav` → **2秒待つ** → 接続が開いていれば `{"type":"play_navigation5","data":{"value":false}}` |
@@ -119,6 +119,11 @@ gamepad(button, combo) = {"type":"gamepad","data":{"button":<16要素>,"axis":[0
 `[0,0,1,0,0]` は NAVIGATION、`[1,0,0,0,0]` は STAND。ただし gamepad-server が JSON
 をどう LCM に詰めているかは確認できていない。**意味の推定にかかわらず、UI-DRP と
 同じ値をそのまま送る。**
+
+**UI-DRP との違い（2026-10-05）**：2026-10-04 の実機では、UI-DRP どおり `enterNav` を
+1回送っても、`play_navigation5` に `success:true` が返るだけでロボットが動かなかった
+（UI-DRP でも同じ）。`leaveNav` は4回送って離す形で実機で効いたので、開始も同じ形にする
+（`ENTER_NAV_REPEAT = 4`）。
 
 `play_navigation5` は AOS v0.2.4 の gamepad-server には存在しない。ロボットでは
 ベンダーがデモ用に足した新しい gamepad-server が動いていると推定している。

@@ -44,6 +44,9 @@ COMBO_NAVIGATION = [0, 0, 1, 0, 0]
 COMBO_STAND = [1, 0, 0, 0, 0]
 COMBO_NONE = [0, 0, 0, 0, 0]
 LEAVE_NAV_REPEAT = 4
+# UI-DRP sends the navigation combo once. That did not start the robot on site
+# (2026-10-04), so start repeats it and releases, the way STOP sends its combo.
+ENTER_NAV_REPEAT = 4
 
 _MARK_FROM = {
     STATUS_RETURNING: (STATUS_LOADING,),
@@ -246,7 +249,10 @@ class R2Controller:
     def _run_start(self):
         # UI-DRP sends play_navigation5 only on the socket that got the combo.
         connection_id = self._link.connection_id()
-        if not self._link.send_json(gamepad_message(_NO_BUTTONS, COMBO_NAVIGATION)):
+        for _ in range(ENTER_NAV_REPEAT):
+            if not self._link.send_json(gamepad_message(_NO_BUTTONS, COMBO_NAVIGATION)):
+                return self._fail_start(FAILURE_START_DISCONNECTED)
+        if not self._link.send_json(gamepad_message(_NO_BUTTONS, COMBO_NONE)):
             return self._fail_start(FAILURE_START_DISCONNECTED)
         self._sleep(NAV_WAIT_SECONDS)
         with self._cond:

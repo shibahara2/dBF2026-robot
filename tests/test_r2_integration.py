@@ -26,4 +26,4 @@ def test_controller_runs_a_full_cycle_against_the_mock():
 
     assert snap["under_mode"] == "mock_m1"
     assert STATUS_LOADING in seen and STATUS_RETURNING in seen
-    assert [m["type"] for m in realtime.received] == ["gamepad", "play_navigation5"]
+    assert [m["type"] for m in realtime.received] == ["gamepad"] * 5 + ["play_navigation5"]
