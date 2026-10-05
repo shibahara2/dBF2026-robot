@@ -278,23 +278,26 @@ pytest -q \
 
 ## 環境ごとの設定
 
-環境は4つある。環境によって値が変わる設定を下の表にまとめた。`.env.example` の末尾に
+環境は5つある。環境によって値が変わる設定を下の表にまとめた。`.env.example` の末尾に
 環境ごとのブロックがあるので、使う1つだけをコメントから外す。それ以外の設定は全環境で共通。
 spark-3a50 は 10.17.2.171、spark-60c9 は 10.17.4.171。
 
-| | 本番 | local 本番 | mock | local mock |
-|---|---|---|---|---|
-| Flask と LLM の機体 | spark-3a50 | spark-60c9 | spark-3a50 | spark-60c9 |
-| R2 / AI管制PF | 実機 / 本番 | 実機 / 本番 | モック / モック | モック / モック |
-| `R2_WS_URL` | `ws://10.17.4.171:9002/realtime` | `ws://192.168.0.11:9002/realtime` | `ws://127.0.0.1:9002/realtime` | 同左 |
-| `PF_BASE_URL` | `https://reception.robility-system-stg.com` | 同左 | `http://localhost:5002` | 同左 |
-| `PF_API_KEY` | AI管制PF から発行されたキー | 同左 | `mock-api-key` | 同左 |
-| voice_ui の `FLASK_BASE_URL` | `http://10.17.2.171:5100` | 設定しない | `http://10.17.2.171:5100` | 設定しない |
-| voice_ui の `DIALOGUE_LLM_URL` | `http://10.17.2.171:8080/v1` | 設定しない | `http://10.17.2.171:8080/v1` | 設定しない |
+| | 本番 | 本番 PF mock | local 本番 | mock | local mock |
+|---|---|---|---|---|---|
+| Flask と LLM の機体 | spark-3a50 | spark-3a50 | spark-60c9 | spark-3a50 | spark-60c9 |
+| R2 / AI管制PF | 実機 / 本番 | 実機 / モック | 実機 / 本番 | モック / モック | モック / モック |
+| `R2_WS_URL` | `ws://10.17.4.171:9002/realtime` | 同左 | `ws://192.168.0.11:9002/realtime` | `ws://127.0.0.1:9002/realtime` | 同左 |
+| `PF_BASE_URL` | `https://reception.robility-system-stg.com` | `http://localhost:5002` | `https://reception.robility-system-stg.com` | `http://localhost:5002` | 同左 |
+| `PF_API_KEY` | AI管制PF から発行されたキー | `mock-api-key` | AI管制PF から発行されたキー | `mock-api-key` | 同左 |
+| voice_ui の `FLASK_BASE_URL` | `http://10.17.2.171:5100` | 同左 | 設定しない | `http://10.17.2.171:5100` | 設定しない |
+| voice_ui の `DIALOGUE_LLM_URL` | `http://10.17.2.171:8080/v1` | 同左 | 設定しない | `http://10.17.2.171:8080/v1` | 設定しない |
 
-- 本番の R2 には、spark-60c9 が転送している 9002 番を経由してつなぐ（「R2 (THEMIS) への接続」）。
+- 本番と本番 PF mock の R2 には、spark-60c9 が転送している 9002 番を経由してつなぐ（「R2 (THEMIS) への接続」）。
   local 本番では、spark-60c9 が THEMIS_5G でロボットに直接つながる。
 - mock と local mock では、Flask と同じ機体で `run_mocks.py` を起動する。
+- 本番 PF mock は、AI管制PF が使えないときに R2 の実機だけを試すためのもの。spark-3a50 で
+  `run_mocks.py` を起動して PF モック（:5002）を使う。同時に起動する R2 モック
+  （127.0.0.1:9002）は使われない。
 - voice_ui は `.env` を読まないので、表の下2行は起動するときに環境変数で渡す。
   「設定しない」は既定値（`localhost:5100` と `localhost:8080/v1`）のままでよいという意味。
 - zed2i の映像から話しかけを検知する仕組み（`tools/run_themis_vlm.py` と vlm_server）は今は
