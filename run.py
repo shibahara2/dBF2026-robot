@@ -1,6 +1,13 @@
+import logging
 import os
 
 from app import create_app
+
+# INFO so that R2's under_mode changes and connection events reach run.log.
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s %(levelname)s %(name)s: %(message)s",
+)
 
 # run() below uses debug=True, so the reloader's parent process imports this
 # module too. Only the child that serves requests may connect to R2; two
