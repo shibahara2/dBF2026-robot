@@ -21,6 +21,9 @@ const statusStep = document.getElementById("status-step");
 const statusGuest = document.getElementById("status-guest");
 const debugError = document.getElementById("debug-error");
 const debugErrorMessage = document.getElementById("debug-error-message");
+const debugCancel = document.getElementById("debug-cancel");
+// Steps before anything is sent to R2 (CANCELLABLE_STEPS in app/state_machine.py).
+const CANCELLABLE_STEPS = ["polling_pf_ready", "waiting_r2_ready"];
 const sequenceDiagram = document.getElementById("sequence-diagram");
 const playhead = document.getElementById("playhead");
 const pfStatusValue = document.getElementById("pf-status-value");
@@ -213,6 +216,10 @@ document.getElementById("state-machine-reset").addEventListener("click", () => {
   fetch("/api/reset", { method: "POST" }).catch(() => {});
 });
 
+document.getElementById("state-machine-cancel").addEventListener("click", () => {
+  fetch("/api/reset", { method: "POST" }).catch(() => {});
+});
+
 function formatReply(snapshot) {
   if (!snapshot.last_reply) {
     return "-";
@@ -378,6 +385,10 @@ function render(snapshot) {
     playhead.setAttribute("y", bounds.y);
     playhead.setAttribute("height", bounds.height);
   }
+
+  debugCancel.hidden = !(
+    snapshot.phase === "waiting" && CANCELLABLE_STEPS.includes(snapshot.step)
+  );
 
   if (snapshot.phase === "error") {
     sequenceDiagram.classList.add("error");

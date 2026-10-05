@@ -140,6 +140,11 @@ class R2Controller:
                     return snap
                 self._cond.wait()
 
+    def wake(self):
+        """Make wait_until() recheck predicates that depend on state outside R2."""
+        with self._cond:
+            self._cond.notify_all()
+
     def add_listener(self, listener):
         self._listeners.append(listener)
 

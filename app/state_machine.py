@@ -15,6 +15,8 @@ STEP_WAITING_R2_READY = "waiting_r2_ready"
 STEP_STARTING_R2 = "starting_r2"
 STEP_WAITING_R2_PLACED = "waiting_r2_placed"
 STEP_NOTIFYING_PF_PLACED = "notifying_pf_placed"
+# Steps before anything is sent to R2; a reset may abandon the cycle here.
+CANCELLABLE_STEPS = (STEP_POLLING_PF_READY, STEP_WAITING_R2_READY)
 
 # How a check-in was initiated and how far it got (see
 # docs/superpowers/specs/2026-09-29-checkin-entry-design.md).
@@ -48,6 +50,18 @@ def _r2_placed_or_failed(snap):
 
 def _r2_failure_text(snap):
     return snap.get("failure_message") or snap.get("failure") or "不明"
+
+
+_STEP0_FIELDS = {
+    "phase": PHASE_WAITING,
+    "step": STEP_AWAITING_CHECKIN,
+    "guest_name": None,
+    "error_message": None,
+    "entry_source": None,
+    "entry_stage": None,
+    "entry_at": None,
+    "entry_touched": None,
+}
 
 
 def default_now():
@@ -88,6 +102,8 @@ class StateMachine:
         self._entry_stage = None
         self._entry_at = None
         self._entry_touched = None
+        # Bumped by every check-in and reset; a cycle stops once it is stale.
+        self._cycle = 0
 
     def snapshot(self):
         with self._lock:
@@ -106,15 +122,26 @@ class StateMachine:
             "entry_at": self._entry_at,
         }
 
-    def _record_pf_status(self, status):
-        self._update(pf_status=status, pf_status_at=self._now())
-
     def _update(self, **fields):
         with self._lock:
-            for key, value in fields.items():
-                setattr(self, f"_{key}", value)
-            snap = self._snapshot_locked()
-            self._on_change(snap)
+            self._apply_locked(fields)
+
+    def _apply_locked(self, fields):
+        for key, value in fields.items():
+            setattr(self, f"_{key}", value)
+        self._on_change(self._snapshot_locked())
+
+    def _is_current(self, cycle):
+        with self._lock:
+            return self._cycle == cycle
+
+    def _update_if_current(self, cycle, **fields):
+        """Apply fields unless a reset has abandoned this cycle."""
+        with self._lock:
+            if self._cycle != cycle:
+                return False
+            self._apply_locked(fields)
+        return True
 
     def _awaiting_checkin_locked(self):
         return self._phase == PHASE_WAITING and self._step == STEP_AWAITING_CHECKIN
@@ -184,6 +211,7 @@ class StateMachine:
             if not self._awaiting_checkin_locked():
                 return False
             source = self._kiosk_source_locked()
+            self._cycle += 1
             self._phase = PHASE_WAITING
             self._step = STEP_POLLING_PF_READY
             self._guest_name = guest_name
@@ -194,10 +222,19 @@ class StateMachine:
         return True
 
     def try_reset(self):
+        """Clear an error, or abandon a cycle that has not started R2 yet."""
         with self._lock:
-            if self._phase != PHASE_ERROR:
+            if self._phase == PHASE_ERROR:
+                abandoning = False
+            elif self._phase == PHASE_WAITING and self._step in CANCELLABLE_STEPS:
+                abandoning = True
+            else:
                 return False
-        self._to_waiting_step0()
+            self._cycle += 1
+            self._apply_locked(_STEP0_FIELDS)
+        if abandoning:
+            # The cycle may be blocked waiting for R2; let it see it is stale.
+            self._r2.wake()
         return True
 
     def can_resume_after_start(self):
@@ -218,16 +255,7 @@ class StateMachine:
         self._run_after_start()
 
     def _to_waiting_step0(self):
-        self._update(
-            phase=PHASE_WAITING,
-            step=STEP_AWAITING_CHECKIN,
-            guest_name=None,
-            error_message=None,
-            entry_source=None,
-            entry_stage=None,
-            entry_at=None,
-            entry_touched=None,
-        )
+        self._update(**_STEP0_FIELDS)
 
     def _fail(self, message):
         self._update(phase=PHASE_ERROR, error_message=message)
@@ -237,14 +265,22 @@ class StateMachine:
         self._fail(message)
 
     def run_started_cycle(self):
+        with self._lock:
+            cycle = self._cycle
+            if not (self._phase == PHASE_WAITING and self._step == STEP_POLLING_PF_READY):
+                return  # reset before this queued cycle got to run
         self._wait_before_step()
-        if not self._poll_pf_ready():
+        if not self._poll_pf_ready(cycle):
             return
-        self._update(step=STEP_WAITING_R2_READY)
+        if not self._update_if_current(cycle, step=STEP_WAITING_R2_READY):
+            return
         self._wait_before_step()
-        if not self._wait_r2_ready():
+        if not self._wait_r2_ready(cycle):
             return
-        self._update(step=STEP_STARTING_R2)
+        # Leaving CANCELLABLE_STEPS here: from now on a reset is refused, so
+        # nothing can abandon the cycle between this check and the start.
+        if not self._update_if_current(cycle, step=STEP_STARTING_R2):
+            return
         self._wait_before_step()
         if not self._start_r2():
             return
@@ -264,22 +300,37 @@ class StateMachine:
     def _wait_before_step(self):
         self._sleep(self._sequence_wait)
 
-    def _poll_pf_ready(self):
+    def _poll_pf_ready(self, cycle):
         while True:
+            if not self._is_current(cycle):
+                return False
             outcome = self._pf.get_guide_robot_status()
-            self._record_pf_status(outcome)
+            if not self._update_if_current(cycle, pf_status=outcome, pf_status_at=self._now()):
+                return False
             if outcome == "ready":
                 return True
             if outcome in ("initializing", "timeout", "retryable_error"):
                 self._sleep(self._poll_interval)
                 continue
-            self._fail(f"AI管制PFの状態確認に失敗しました: {outcome}")
+            self._update_if_current(
+                cycle,
+                phase=PHASE_ERROR,
+                error_message=f"AI管制PFの状態確認に失敗しました: {outcome}",
+            )
             return False
 
-    def _wait_r2_ready(self):
-        snap = self._r2.wait_until(_r2_ready_or_failed)
+    def _wait_r2_ready(self, cycle):
+        snap = self._r2.wait_until(
+            lambda snap: not self._is_current(cycle) or _r2_ready_or_failed(snap)
+        )
+        if not self._is_current(cycle):
+            return False
         if snap["status"] == STATUS_FAILED:
-            self._fail(f"R2が failed です: {_r2_failure_text(snap)}")
+            self._update_if_current(
+                cycle,
+                phase=PHASE_ERROR,
+                error_message=f"R2が failed です: {_r2_failure_text(snap)}",
+            )
             return False
         return True
 

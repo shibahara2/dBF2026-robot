@@ -80,5 +80,7 @@ def _checkin_by_reservation(runner, reservation_id):
 def reset():
     runner = current_app.config["STATE_MACHINE_RUNNER"]
     if not runner.request_reset():
-        return jsonify({"message": "not in error state"}), 409
+        return jsonify(
+            {"message": "リセットできるのは、エラーのときか、R2 を動かす前の待ち（PF Ready 待ち・R2 待機確認）のときだけです"}
+        ), 409
     return jsonify({"message": "reset accepted"}), 200

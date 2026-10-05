@@ -526,3 +526,22 @@ def test_snapshot_connection_follows_the_controllers_own_view():
     assert snap["connection"] == "connected"
     link.set_state("disconnected")
     assert controller.snapshot()["connection"] == "disconnected"
+
+
+def test_wake_lets_a_waiter_recheck_a_predicate_that_changed_outside_r2():
+    link, controller = make_controller()
+    cancelled = threading.Event()
+    result = []
+    waiter = threading.Thread(
+        target=lambda: result.append(controller.wait_until(lambda snap: cancelled.is_set()))
+    )
+    waiter.start()
+    time.sleep(0.05)
+    assert waiter.is_alive()
+
+    cancelled.set()
+    controller.wake()
+
+    waiter.join(timeout=1)
+    assert not waiter.is_alive()
+    assert result and result[0]["status"] == STATUS_COMPLETED
