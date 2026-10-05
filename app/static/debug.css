@@ -358,7 +358,8 @@ body {
   border-color: #ccc;
 }
 
-#r2-confirm {
+#r2-confirm,
+#pf-manual-confirm {
   margin-top: 0.75rem;
   padding: 0.5rem 0.75rem;
   background: #fff4e5;
@@ -544,4 +545,40 @@ body {
 .sm-fields dd {
   margin: 0;
   font-family: monospace;
+}
+
+#pf-manual-panel {
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  padding: 0.75rem 1rem;
+  margin-bottom: 1rem;
+}
+
+#pf-manual-result {
+  margin: 0.5rem 0;
+  font-size: 0.85rem;
+  color: #b06000;
+}
+
+#pf-manual-panel table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.8rem;
+}
+
+#pf-manual-panel th,
+#pf-manual-panel td {
+  border-bottom: 1px solid #eee;
+  padding: 0.2rem 0.4rem;
+  text-align: left;
+  vertical-align: top;
+}
+
+#pf-manual-panel td {
+  font-family: monospace;
+  word-break: break-all;
+}
+
+#pf-manual-panel tr.pf-manual-failed td {
+  color: #b00020;
 }

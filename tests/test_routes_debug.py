@@ -293,3 +293,36 @@ def test_debug_js_renders_state_diagrams_from_both_streams():
     ]:
         body = re.search(rf"function {name}\(snapshot\) \{{(.*?)\n\}}", source, re.S).group(1)
         assert f'renderStateDiagram("{svg_id}"' in body
+
+
+def test_debug_page_has_pf_manual_panel():
+    resp = make_client().get("/debug")
+
+    for element_id in [
+        "pf-manual-panel",
+        "pf-manual-status",
+        "pf-manual-drink-placed",
+        "pf-manual-confirm",
+        "pf-manual-confirm-yes",
+        "pf-manual-confirm-no",
+        "pf-manual-result",
+        "pf-manual-rows",
+    ]:
+        assert f'id="{element_id}"'.encode() in resp.data
+
+
+def test_debug_js_sends_pf_requests_and_confirms_only_the_post():
+    source = (Path(__file__).parents[1] / "app" / "static" / "debug.js").read_text()
+
+    assert 'fetch("/api/debug/pf/" + action, { method: "POST" })' in source
+    # GET goes straight out; POST waits for the in-page confirmation.
+    assert re.search(
+        r'"pf-manual-status"\)\.addEventListener\("click", \(\) => \{\s*sendPfManual\("status"\);',
+        source,
+    )
+    assert re.search(
+        r'"pf-manual-confirm-yes"\)\.addEventListener\("click", \(\) => \{\s*pfManualConfirm\.hidden = true;\s*sendPfManual\("drink-placed"\);',
+        source,
+    )
+    assert source.count('sendPfManual("drink-placed")') == 1
+    assert "サイクル実行中です" in source

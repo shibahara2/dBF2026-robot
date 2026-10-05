@@ -12,6 +12,7 @@ from .routes.events import events_bp
 from .routes.ui import ui_bp
 from .routes.voice_turns import voice_turns_bp
 from .routes.external_start import external_start_bp
+from .routes.pf_debug import pf_debug_bp
 from .routes.r2_debug import r2_debug_bp
 from .reservations import ReservationStore
 from .sse import EventBroadcaster
@@ -57,6 +58,7 @@ def create_app(r2_controller=None, pf_client=None, reservation_store=None, start
     app.config["STATE_MACHINE"] = state_machine
     app.config["STATE_MACHINE_RUNNER"] = runner
     app.config["R2_CONTROLLER"] = r2_controller
+    app.config["PF_CLIENT"] = pf_client
     app.config["R2_LINK"] = r2_link
     app.config["RESERVATION_STORE"] = reservation_store
 
@@ -75,6 +77,7 @@ def create_app(r2_controller=None, pf_client=None, reservation_store=None, start
     app.register_blueprint(external_start_bp)
     app.register_blueprint(voice_turns_bp)
     app.register_blueprint(r2_debug_bp)
+    app.register_blueprint(pf_debug_bp)
 
     thread = threading.Thread(target=runner.run_forever, daemon=True)
     thread.start()

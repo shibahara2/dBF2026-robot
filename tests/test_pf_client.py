@@ -211,3 +211,74 @@ def test_post_drink_placed_malformed_json_is_false_not_raising():
         content_type="application/json",
     )
     assert make_client().post_drink_placed() is False
+
+
+@responses.activate
+def test_raw_get_status_returns_the_response_as_is():
+    responses.add(
+        responses.GET,
+        "http://pf.test/api/v1/guide-robot/status",
+        json={"status": "Initialising"},
+        status=200,
+    )
+
+    result = make_client().raw_get_status()
+
+    assert result["method"] == "GET"
+    assert result["url"] == "http://pf.test/api/v1/guide-robot/status"
+    assert result["status_code"] == 200
+    assert result["body"] == '{"status": "Initialising"}'
+    assert result["error"] is None
+    assert isinstance(result["elapsed_ms"], int)
+
+
+@responses.activate
+def test_raw_post_drink_placed_sends_the_fixed_body_and_keeps_error_statuses():
+    responses.add(
+        responses.POST,
+        "http://pf.test/api/v1/drink/placed",
+        json={"message": "bad"},
+        status=500,
+    )
+
+    client = PFClient(base_url="http://pf.test", timeout=1.0, api_key="test-key")
+    result = client.raw_post_drink_placed()
+
+    assert result["method"] == "POST"
+    assert result["url"] == "http://pf.test/api/v1/drink/placed"
+    assert result["request_body"] == {"result": "success"}
+    assert result["status_code"] == 500
+    assert result["body"] == '{"message": "bad"}'
+    assert result["error"] is None
+    sent = responses.calls[0].request
+    assert sent.headers["X-API-Key"] == "test-key"
+    assert sent.body == b'{"result": "success"}'
+
+
+@responses.activate
+def test_raw_get_status_reports_a_timeout():
+    responses.add(
+        responses.GET,
+        "http://pf.test/api/v1/guide-robot/status",
+        body=requests.exceptions.ReadTimeout("slow"),
+    )
+
+    result = make_client().raw_get_status()
+
+    assert result["status_code"] is None
+    assert result["body"] is None
+    assert result["error"].startswith("timeout")
+
+
+@responses.activate
+def test_raw_get_status_reports_a_connection_error():
+    responses.add(
+        responses.GET,
+        "http://pf.test/api/v1/guide-robot/status",
+        body=requests.exceptions.ConnectionError("refused"),
+    )
+
+    result = make_client().raw_get_status()
+
+    assert result["status_code"] is None
+    assert result["error"].startswith("connection_error")

@@ -75,6 +75,26 @@
       </div>
     </div>
 
+    <h2 class="section-label">AI管制PF 手動操作（spark-3a50 から PF に1回だけ送る。ステートマシンは進まない）</h2>
+    <div id="pf-manual-panel">
+      <div class="r2-buttons">
+        <button type="button" id="pf-manual-status">GET guide-robot/status</button>
+        <button type="button" id="pf-manual-drink-placed" class="r2-danger">POST drink/placed</button>
+      </div>
+      <div id="pf-manual-confirm" hidden>
+        <p id="pf-manual-confirm-message"></p>
+        <button type="button" id="pf-manual-confirm-yes">実行する</button>
+        <button type="button" id="pf-manual-confirm-no">やめる</button>
+      </div>
+      <p id="pf-manual-result"></p>
+      <table>
+        <thead>
+          <tr><th>時刻</th><th>リクエスト</th><th>結果</th><th>ms</th><th>本文 / エラー</th></tr>
+        </thead>
+        <tbody id="pf-manual-rows"></tbody>
+      </table>
+    </div>
+
     <h2 class="section-label">チェックイン入口（最終更新: <span id="entry-at">-</span>）</h2>
     <div id="entry-panel">
       <div class="entry-column">

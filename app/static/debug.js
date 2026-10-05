@@ -222,6 +222,79 @@ debugCancelButton.addEventListener("click", () => {
   fetch("/api/reset", { method: "POST" }).catch(() => {});
 });
 
+const pfManualConfirm = document.getElementById("pf-manual-confirm");
+const pfManualConfirmMessage = document.getElementById("pf-manual-confirm-message");
+const pfManualResult = document.getElementById("pf-manual-result");
+const pfManualRows = document.getElementById("pf-manual-rows");
+const MAX_PF_MANUAL_ROWS = 10;
+// The latest state machine snapshot, to warn when a cycle is running.
+let latestSnapshot = null;
+
+function cycleRunning() {
+  return (
+    latestSnapshot !== null &&
+    !(latestSnapshot.phase === "waiting" && latestSnapshot.step === "awaiting_checkin")
+  );
+}
+
+function pfManualRow(result) {
+  const row = document.createElement("tr");
+  const ok = result.status_code !== null && result.status_code < 400;
+  row.className = ok ? "" : "pf-manual-failed";
+  [
+    toSecondsTime(new Date().toISOString()),
+    `${result.method} ${result.url}`,
+    result.status_code ?? "エラー",
+    result.elapsed_ms ?? "-",
+    result.error || result.body || "",
+  ].forEach((value) => {
+    const cell = document.createElement("td");
+    cell.textContent = String(value);
+    row.append(cell);
+  });
+  return row;
+}
+
+function sendPfManual(action) {
+  pfManualResult.textContent = cycleRunning()
+    ? "送信中…（サイクル実行中です。ステートマシンも PF とやりとりしています）"
+    : "送信中…";
+  fetch("/api/debug/pf/" + action, { method: "POST" })
+    .then((resp) => resp.json())
+    .then((result) => {
+      pfManualResult.textContent = "";
+      pfManualRows.prepend(pfManualRow(result));
+      while (pfManualRows.children.length > MAX_PF_MANUAL_ROWS) {
+        pfManualRows.lastElementChild.remove();
+      }
+    })
+    .catch(() => {
+      pfManualResult.textContent = "基盤（Flask）への送信に失敗しました";
+    });
+}
+
+document.getElementById("pf-manual-status").addEventListener("click", () => {
+  sendPfManual("status");
+});
+
+document.getElementById("pf-manual-drink-placed").addEventListener("click", () => {
+  const running = cycleRunning()
+    ? "サイクル実行中です。ステートマシンとは別に送ります。"
+    : "";
+  pfManualConfirmMessage.textContent =
+    `${running}AI管制PF に drink/placed {"result":"success"} を送ります。本番 PF なら temi が出発します。`;
+  pfManualConfirm.hidden = false;
+});
+
+document.getElementById("pf-manual-confirm-yes").addEventListener("click", () => {
+  pfManualConfirm.hidden = true;
+  sendPfManual("drink-placed");
+});
+
+document.getElementById("pf-manual-confirm-no").addEventListener("click", () => {
+  pfManualConfirm.hidden = true;
+});
+
 function cancelNote(snapshot, cancellable) {
   if (cancellable) {
     return "R2 を動かす前の待ちです。受付待ちに戻せます（R2 には何も送りません）。";
@@ -372,6 +445,7 @@ function renderR2StateDiagram(snapshot) {
 }
 
 function render(snapshot) {
+  latestSnapshot = snapshot;
   renderEntry(snapshot);
   renderRobotStateDiagram(snapshot);
   renderPfStateDiagram(snapshot);

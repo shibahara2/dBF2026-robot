@@ -220,3 +220,14 @@ def test_r2_debug_routes_are_registered():
     app = create_app(r2_controller=FakeR2Controller(), pf_client=FakePFClient())
 
     assert app.test_client().get("/api/debug/r2").status_code == 200
+
+
+def test_pf_debug_routes_use_the_apps_pf_client():
+    class RawPFClient(FakePFClient):
+        def raw_get_status(self):
+            return {"method": "GET", "status_code": 200}
+
+    app = create_app(r2_controller=FakeR2Controller(), pf_client=RawPFClient())
+    resp = app.test_client().post("/api/debug/pf/status")
+    assert resp.status_code == 200
+    assert resp.get_json() == {"method": "GET", "status_code": 200}

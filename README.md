@@ -274,7 +274,11 @@ spark-3a50 に戻すときは逆の順で、spark-60c9 の Flask を止めてか
     「開始を再送」で続きから進める。
 - R2 が未接続のあいだ、チェックインは `waiting_r2_ready`（R2 の待機確認）で待ち続ける。
   エラーにはならず、ステートマシンのリセットでも抜けられない。R2 につながると先へ進む。
-- `/debug` の R2 操作と `/api/checkin` には認証がない。spark-3a50 の 5100/tcp は ufw で
+- `/debug` の「AI管制PF 手動操作」で、spark-3a50 から PF に `GET guide-robot/status` と
+  `POST drink/placed`（body は `{"result":"success"}` 固定）を1回ずつ送れる。結果
+  （HTTP ステータス、本文、ms、タイムアウトなど）をそのまま表に出す。ステートマシンは進まない。
+  POST は確認を挟む。本番 PF なら temi が出発する。
+- `/debug` の R2 操作と PF 手動操作、`/api/checkin` には認証がない。spark-3a50 の 5100/tcp は ufw で
   キオスクPCと展示PCだけに絞ること。
 
 ## Test
