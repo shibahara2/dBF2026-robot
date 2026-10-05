@@ -22,6 +22,8 @@ const statusGuest = document.getElementById("status-guest");
 const debugError = document.getElementById("debug-error");
 const debugErrorMessage = document.getElementById("debug-error-message");
 const debugCancel = document.getElementById("debug-cancel");
+const debugCancelButton = document.getElementById("state-machine-cancel");
+const debugCancelNote = document.getElementById("debug-cancel-note");
 // Steps before anything is sent to R2 (CANCELLABLE_STEPS in app/state_machine.py).
 const CANCELLABLE_STEPS = ["polling_pf_ready", "waiting_r2_ready"];
 const sequenceDiagram = document.getElementById("sequence-diagram");
@@ -216,9 +218,22 @@ document.getElementById("state-machine-reset").addEventListener("click", () => {
   fetch("/api/reset", { method: "POST" }).catch(() => {});
 });
 
-document.getElementById("state-machine-cancel").addEventListener("click", () => {
+debugCancelButton.addEventListener("click", () => {
   fetch("/api/reset", { method: "POST" }).catch(() => {});
 });
+
+function cancelNote(snapshot, cancellable) {
+  if (cancellable) {
+    return "R2 を動かす前の待ちです。受付待ちに戻せます（R2 には何も送りません）。";
+  }
+  if (snapshot.phase === "error") {
+    return "エラー中です。上の「ステートマシンをリセット」で戻してください。";
+  }
+  if (snapshot.phase === "waiting" && snapshot.step === "awaiting_checkin") {
+    return "チェックインされていないので、取り消すものはありません。";
+  }
+  return "R2 に開始を送った後なので取り消せません。STOP → エラー → リセットで戻してください。";
+}
 
 function formatReply(snapshot) {
   if (!snapshot.last_reply) {
@@ -386,9 +401,11 @@ function render(snapshot) {
     playhead.setAttribute("height", bounds.height);
   }
 
-  debugCancel.hidden = !(
-    snapshot.phase === "waiting" && CANCELLABLE_STEPS.includes(snapshot.step)
-  );
+  const cancellable =
+    snapshot.phase === "waiting" && CANCELLABLE_STEPS.includes(snapshot.step);
+  debugCancelButton.disabled = !cancellable;
+  debugCancel.className = cancellable ? "debug-cancel-enabled" : "debug-cancel-disabled";
+  debugCancelNote.textContent = cancelNote(snapshot, cancellable);
 
   if (snapshot.phase === "error") {
     sequenceDiagram.classList.add("error");
