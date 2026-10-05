@@ -40,9 +40,9 @@ def test_debug_page_has_all_step_arrows():
     assert resp.status_code == 200
     for step_id in [
         "arrow-polling_pf_ready",
-        "arrow-polling_r2_ready",
-        "arrow-sending_load_drink",
-        "arrow-polling_r2_active",
+        "arrow-waiting_r2_ready",
+        "arrow-starting_r2",
+        "arrow-waiting_r2_placed",
         "arrow-notifying_pf_placed",
     ]:
         assert step_id.encode() in resp.data
@@ -66,9 +66,8 @@ def test_debug_page_has_get_status_panel():
     assert resp.status_code == 200
     assert b'id="pf-status-value"' in resp.data
     assert b'id="pf-status-at"' in resp.data
-    assert b'id="r2-status-value"' in resp.data
-    assert b'id="r2-status-at"' in resp.data
     assert b'id="current-time"' in resp.data
+    assert b'id="r2-status-value"' not in resp.data
 
 
 def test_debug_page_shows_connection_targets():
@@ -77,7 +76,7 @@ def test_debug_page_shows_connection_targets():
     resp = client.get("/debug")
 
     assert resp.status_code == 200
-    assert b'id="r2-base-url"' in resp.data
+    assert b'id="r2-ws-url"' in resp.data
     assert b'id="pf-base-url"' in resp.data
 
 
@@ -125,11 +124,12 @@ def test_debug_js_renders_entry_fields():
         assert f"snapshot.{field}" in source
 
 
-def test_debug_js_handles_voice_turns_and_skips_other_typed_events():
+def test_debug_js_handles_typed_events_before_rendering_snapshots():
     source = (Path(__file__).parents[1] / "app" / "static" / "debug.js").read_text()
 
     assert re.search(
-        r"if \(payload\.type\) \{\s*if \(payload\.type === \"voice_turn\"\) \{\s*addVoiceTurn\(payload\);\s*\}\s*return;\s*\}\s*render\(payload\);",
+        r"if \(payload\.type\) \{\s*if \(payload\.type === \"voice_turn\"\) \{\s*addVoiceTurn\(payload\);\s*\}\s*"
+        r"if \(payload\.type === \"r2_state\"\) \{\s*renderR2\(payload\);\s*\}\s*return;\s*\}\s*render\(payload\);",
         source,
     )
 
@@ -152,10 +152,144 @@ def test_debug_js_loads_recent_voice_turns_and_escapes_text():
     assert "innerHTML" not in source
 
 
-def test_debug_page_has_skip_load_drink_button():
-    client = make_client()
+def test_debug_page_has_r2_panel():
+    resp = make_client().get("/debug")
 
-    resp = client.get("/debug")
+    for element_id in [
+        "r2-panel",
+        "r2-connection",
+        "r2-connection-at",
+        "r2-status",
+        "r2-status-at",
+        "r2-failure",
+        "r2-under-mode",
+        "r2-under-mode-at",
+        "r2-last-reply",
+        "r2-toggle-connection",
+        "r2-stop",
+        "r2-resend",
+        "r2-mark-returning",
+        "r2-mark-completed",
+        "r2-mark-failed",
+        "r2-reset",
+        "r2-confirm",
+        "r2-result",
+        "r2-hint",
+        "state-machine-reset",
+    ]:
+        assert f'id="{element_id}"'.encode() in resp.data
+    assert b'id="skip-load-drink"' not in resp.data
 
-    assert resp.status_code == 200
-    assert b'id="skip-load-drink"' in resp.data
+
+def test_debug_js_drives_r2_api_and_confirms_risky_actions():
+    source = (Path(__file__).parents[1] / "app" / "static" / "debug.js").read_text()
+
+    assert 'fetch("/api/debug/r2")' in source
+    for action in ["connect", "disconnect", "stop", "resend", "mark", "reset"]:
+        assert f'"{action}"' in source
+    assert "temi が出発します" in source
+    assert "R2 が A にいることを確認しましたか" in source
+    assert 'fetch("/api/reset", { method: "POST" })' in source
+    # No browser dialogs: they block the page (and automation).
+    for dialog in ["confirm(", "alert(", "prompt("]:
+        assert dialog not in source
+    assert "innerHTML" not in source
+
+
+def test_debug_sequence_diagram_describes_the_websocket_exchange():
+    text = make_client().get("/debug").data.decode()
+
+    assert "play_navigation5" in text
+    assert "under_mode" in text
+    assert "GET load-drink/status" not in text
+    assert "POST load-drink" not in text
+
+
+def test_debug_js_stop_button_is_not_disabled_by_starting():
+    source = (Path(__file__).parents[1] / "app" / "static" / "debug.js").read_text()
+
+    # STOP button must not be guarded by snapshot.starting, only by its enabled rule.
+    # The pattern shows STOP is handled separately from other buttons.
+    assert re.search(
+        r'if \(id === "r2-stop"\)',
+        source,
+    )
+
+
+def _svg(text, svg_id):
+    match = re.search(rf'<svg id="{svg_id}".*?</svg>', text, re.S)
+    assert match, f"svg {svg_id} not found"
+    return match.group(0)
+
+
+def _state_nodes(svg):
+    return {
+        state
+        for value in re.findall(r'class="state[^"]*" data-state="([^"]+)"', svg)
+        for state in value.split()
+    }
+
+
+def test_debug_page_has_state_diagrams_for_three_parties():
+    text = make_client().get("/debug").data.decode()
+
+    assert 'id="state-diagrams"' in text
+    assert text.index('id="state-diagrams"') < text.index('id="sequence-diagram"')
+    assert _state_nodes(_svg(text, "sm-robot")) == {
+        "awaiting_checkin",
+        "polling_pf_ready",
+        "waiting_r2_ready",
+        "starting_r2",
+        "waiting_r2_placed",
+        "notifying_pf_placed",
+        "error",
+    }
+    assert _state_nodes(_svg(text, "sm-r2")) == {
+        "completed",
+        "loading",
+        "returning",
+        "failed",
+    }
+    assert _state_nodes(_svg(text, "sm-pf")) == {
+        "none",
+        "initializing",
+        "ready",
+        "timeout",
+        "retryable_error",
+        "fatal_error",
+    }
+
+
+def test_r2_state_diagram_labels_transitions_with_under_mode():
+    svg = _svg(make_client().get("/debug").data.decode(), "sm-r2")
+
+    assert re.search(r'data-from="loading" data-to="returning".*?_m5', svg, re.S)
+    assert re.search(r'data-from="returning" data-to="completed".*?_m1', svg, re.S)
+    for element_id in ["sm-r2-connection", "sm-r2-under-mode", "sm-r2-failure"]:
+        assert f'id="{element_id}"' in make_client().get("/debug").data.decode()
+
+
+def test_robot_state_diagram_has_reset_and_resend_from_error():
+    svg = _svg(make_client().get("/debug").data.decode(), "sm-robot")
+
+    assert 'data-from="error" data-to="awaiting_checkin"' in svg
+    assert 'data-from="error" data-to="starting_r2"' in svg
+    assert 'data-from="notifying_pf_placed" data-to="awaiting_checkin"' in svg
+
+
+def test_debug_js_renders_state_diagrams_from_both_streams():
+    source = (Path(__file__).parents[1] / "app" / "static" / "debug.js").read_text()
+
+    assert "function renderStateDiagram(" in source
+    render = re.search(r"function render\(snapshot\) \{(.*?)\n\}", source, re.S).group(1)
+    render_r2 = re.search(r"function renderR2\(snapshot\) \{(.*?)\n\}", source, re.S).group(1)
+    assert "renderRobotStateDiagram(snapshot);" in render
+    assert "renderPfStateDiagram(snapshot);" in render
+    assert "renderR2StateDiagram(snapshot);" in render_r2
+    for svg_id, name in [
+        ("sm-robot", "renderRobotStateDiagram"),
+        ("sm-pf", "renderPfStateDiagram"),
+        ("sm-r2", "renderR2StateDiagram"),
+    ]:
+        body = re.search(rf"function {name}\(snapshot\) \{{(.*?)\n\}}", source, re.S).group(1)
+        assert f'renderStateDiagram("{svg_id}"' in body

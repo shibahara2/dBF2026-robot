@@ -44,6 +44,15 @@ body {
   margin-bottom: 1rem;
 }
 
+#debug-cancel {
+  background: #fff8e1;
+  border: 1px solid #b26a00;
+  color: #6d4100;
+  padding: 0.75rem 1rem;
+  border-radius: 4px;
+  margin-bottom: 1rem;
+}
+
 #get-status-panel {
   display: flex;
   flex-wrap: wrap;
@@ -248,26 +257,278 @@ body {
   color: #999;
 }
 
-#manual-controls {
-  border: 1px solid #ccc;
+#r2-panel {
+  border: 2px solid #ccc;
   border-radius: 4px;
   padding: 0.75rem 1rem;
   margin-bottom: 1rem;
 }
 
-#manual-controls button {
+#r2-panel.r2-connection-connected {
+  border-color: #1e8e3e;
+}
+
+#r2-panel.r2-connection-disconnected,
+#r2-panel.r2-connection-stopped {
+  border-color: #b00020;
+}
+
+#r2-panel.r2-connection-connecting {
+  border-color: #f29900;
+}
+
+.r2-row {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.r2-badge {
+  font-weight: bold;
+}
+
+.r2-connection-connected .r2-badge {
+  color: #1e8e3e;
+}
+
+.r2-connection-disconnected .r2-badge,
+.r2-connection-stopped .r2-badge {
+  color: #b00020;
+}
+
+.r2-connection-connecting .r2-badge {
+  color: #f29900;
+}
+
+.r2-at {
+  font-size: 0.8rem;
+  color: #666;
+}
+
+.r2-fields {
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  gap: 0.25rem 1rem;
+  margin: 0.75rem 0;
+}
+
+.r2-fields dt {
+  font-weight: bold;
+  font-size: 0.8rem;
+  color: #666;
+}
+
+.r2-fields dd {
+  margin: 0;
+  font-family: monospace;
+}
+
+.r2-buttons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.r2-buttons button {
   font-size: 0.9rem;
   padding: 0.35rem 0.9rem;
 }
 
-#skip-load-drink-result {
-  margin-left: 0.75rem;
+.r2-danger {
+  color: #fff;
+  background: #b00020;
+  border: 1px solid #b00020;
+}
+
+.r2-danger:disabled {
+  background: #ccc;
+  border-color: #ccc;
+}
+
+#r2-confirm {
+  margin-top: 0.75rem;
+  padding: 0.5rem 0.75rem;
+  background: #fff4e5;
+  border: 1px solid #f29900;
+  border-radius: 4px;
+}
+
+#r2-hint {
+  margin: 0.5rem 0 0;
+  font-size: 0.75rem;
+  color: #999;
+}
+
+#r2-result {
+  margin: 0.5rem 0 0;
   font-size: 0.85rem;
   color: #666;
 }
 
-.manual-hint {
-  margin: 0.5rem 0 0;
-  font-size: 0.8rem;
+.sm-defs {
+  position: absolute;
+}
+
+#state-diagrams {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+  gap: 0.75rem;
+  margin-bottom: 1rem;
+}
+
+.sm-card {
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  padding: 0.5rem 0.75rem;
+}
+
+.sm-card h3 {
+  margin: 0 0 0.25rem;
+  font-size: 0.9rem;
+}
+
+.sm-card svg {
+  width: 100%;
+  height: auto;
+  display: block;
+}
+
+.sm-band {
+  fill: #f6f8fb;
+  stroke: #dde3ea;
+  rx: 6;
+}
+
+.sm-band-label {
+  font-size: 10px;
+  fill: #99a;
+  text-anchor: middle;
+  dominant-baseline: middle;
+  letter-spacing: 1px;
+}
+
+.state rect {
+  fill: #fff;
+  stroke: #bbb;
+  stroke-width: 1.5;
+  rx: 6;
+}
+
+.state text {
+  font-size: 12px;
+  fill: #888;
+  text-anchor: middle;
+  dominant-baseline: middle;
+}
+
+.state text.sm-sub {
+  font-size: 10px;
+}
+
+.state.current rect {
+  fill: #1a73e8;
+  stroke: #1a73e8;
+}
+
+.state.current text {
+  fill: #fff;
+  font-weight: bold;
+}
+
+.state.sm-warn-state.current rect {
+  fill: #f29900;
+  stroke: #f29900;
+}
+
+.state.sm-error-state.current rect {
+  fill: #b00020;
+  stroke: #b00020;
+}
+
+.state.stalled rect {
+  stroke: #b00020;
+  stroke-width: 2;
+  stroke-dasharray: 4, 3;
+}
+
+.state.stalled text {
+  fill: #b00020;
+  font-weight: bold;
+}
+
+.transition path {
+  fill: none;
+  stroke: #ccc;
+  stroke-width: 1.5;
+  marker-end: url(#sm-arrow);
+}
+
+.transition.sm-fail path {
+  stroke-dasharray: 4, 3;
+}
+
+.transition text {
+  font-size: 10px;
+  fill: #999;
+  text-anchor: middle;
+}
+
+.transition text.sm-start {
+  text-anchor: start;
+}
+
+.transition.last path {
+  stroke: #1a73e8;
+  stroke-width: 2.5;
+  marker-end: url(#sm-arrow-last);
+}
+
+.transition.last text {
+  fill: #1a73e8;
+  font-weight: bold;
+}
+
+.transition.pending path {
+  stroke: #1a73e8;
+  stroke-dasharray: 6, 4;
+  animation: sm-dash 0.8s linear infinite;
+}
+
+@keyframes sm-dash {
+  to {
+    stroke-dashoffset: -20;
+  }
+}
+
+.sm-caption {
+  margin: 0.25rem 0 0;
+  font-size: 0.75rem;
   color: #666;
+  font-family: monospace;
+}
+
+.sm-card.stale .state.current rect {
+  opacity: 0.45;
+}
+
+.sm-card.offline {
+  border-color: #b00020;
+}
+
+.sm-fields {
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  gap: 0.1rem 0.75rem;
+  margin: 0.25rem 0 0;
+  font-size: 0.75rem;
+}
+
+.sm-fields dt {
+  color: #666;
+  font-weight: bold;
+}
+
+.sm-fields dd {
+  margin: 0;
+  font-family: monospace;
 }
