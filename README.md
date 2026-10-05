@@ -210,6 +210,29 @@ sudo iptables -A FORWARD -s 192.168.0.11 -d 10.17.2.171 -m state --state ESTABLI
 
 **確認**：spark-3a50 で `.venv/bin/python -c "import websocket; websocket.create_connection('ws://10.17.4.171:9002/realtime', timeout=5).close(); print('ok')"`
 
+### R2 に送る指示とコントローラーの操作の対応
+
+UI-DRP が `/realtime` に送る指示と、スマホ（AOS Controller）とゲームパッドでの操作の
+対応。このアプリも同じものを送る（`app/clients/r2_controller.py`）。
+
+| 操作 | 送るもの | コントローラーでの同じ操作 |
+|---|---|---|
+| 開始（UI-DRP の START、このアプリのチェックイン後） | `gamepad`（ボタンなし、`combo=[0,0,1,0,0]`）を1回 → 2秒待つ → `{"type":"play_navigation5","data":{"value":true}}` | AOS Controller で Navigation Task 1 を ON にしてから Auto Navigation を ON（THEMIS Deployment Manual 4.1） |
+| 停止（UI-DRP の RESET、`/debug` の STOP） | `gamepad`（BACK と START、`combo=[1,0,0,0,0]`）を4回 → `gamepad`（ボタンなし、`combo=[0,0,0,0,0]`）を1回 → 2秒待つ → `{"type":"play_navigation5","data":{"value":false}}` | ゲームパッドの START + BACK（Standing Mode に戻して止める） |
+| （UI-DRP は送らない） | - | ゲームパッドの START + Y（Walking Mode） |
+
+- `gamepad` は `{"type":"gamepad","data":{"button":<16要素>,"axis":[0,0,0,0,0,0],"combo":<5要素>}}`。
+  `button` の並びは `A,B,Y,X,LS,RS,LS2,RS2,BK,ST,LZ,RZ,U,D,L,R`（8 が BACK、9 が START）と
+  推定している。`combo` の5要素は `STAND, WALK, NAVIGATION, MANIPULATION, (不明)` と推定していて、
+  `[0,0,1,0,0]` が NAVIGATION、`[1,0,0,0,0]` が STAND。どちらもベンダーの資料では確認していない。
+- `play_navigation5` は、Navigation Task 1 と Auto Navigation を ON にして始めるタスクと同じもの。
+  AOS のマニュアルには出てこない。
+- 2026-10-04 の実機での確認：
+  - 停止は効く。足踏みしているロボットが止まり、`play_navigation5`（false）にも `success:true` が返った。
+  - 開始は `success:true` が返るのに、ロボットが動かなかった。`under_mode` も `0_m1` のまま変わらなかった。
+    UI-DRP の START でも、スマホとゲームパッドを切り離しても同じだった。コントローラーで
+    Navigation Task 1 と Auto Navigation を ON にすれば動く。原因はわかっておらず、ベンダーへの確認が要る。
+
 ### spark-60c9 で Flask（ステートマシン）を動かす場合
 
 基本は spark-3a50 で動かす。spark-3a50 が使えないときは、spark-60c9 で Flask も
